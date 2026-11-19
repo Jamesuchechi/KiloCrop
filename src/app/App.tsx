@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 
 import bundleData from '../../specs/bundle.json';
 import { closeBitmap } from '../engine/decode';
+import type { PrintSheetInput } from '../engine/print-sheet';
 import { parsePortalRule, parseQuerySpec, toQuerySpec } from '../engine/rule-parser';
 import { findSpecById } from '../engine/specs';
 import type {
@@ -14,7 +15,6 @@ import type {
   Rect,
   Spec,
 } from '../engine/types';
-import type { PrintSheetInput } from '../engine/print-sheet';
 import { CropEditor } from '../ui/crop-editor/CropEditor';
 import { PipelineStatsDrawer } from '../ui/pipeline-stats-drawer';
 import { PortalPicker } from '../ui/portal-picker';
@@ -190,19 +190,84 @@ export function App() {
     setStep('pick');
   }
 
+  const inCropFlow = step !== 'sheet';
+
   return (
     <div class="app-shell">
       <header class="topbar">
-        <div>
-          <h1 class="brand">KiloCrop</h1>
-          <p class="tagline">Fit portal KB &amp; pixel rules offline — never leaves your phone.</p>
+        <div class="brand-group">
+          <svg class="brand-mark" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+            <rect width="64" height="64" rx="14" fill="#0f172a" />
+            <path
+              d="M18 24v-6h6M46 24v-6h-6M18 40v6h6M46 40v6h-6"
+              stroke="#34d399"
+              stroke-width="4"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <circle cx="32" cy="27" r="6" fill="#f8fafc" />
+            <path d="M22 44c0-5.5 4.5-9 10-9s10 3.5 10 9" fill="#f8fafc" />
+          </svg>
+          <div>
+            <h1 class="brand">KiloCrop</h1>
+            <p class="tagline">
+              Fit portal KB &amp; pixel rules offline — never leaves your phone.
+            </p>
+          </div>
         </div>
-        {step !== 'pick' && (
-          <button type="button" class="btn-link" onClick={resetToPicker}>
-            Start over
-          </button>
-        )}
+
+        <div class="topbar-right">
+          <div class="mode-switch" role="navigation" aria-label="Workspace mode">
+            <button
+              type="button"
+              class={inCropFlow ? 'mode-btn active' : 'mode-btn'}
+              onClick={() => setStep(exportOut ? 'result' : file ? 'crop' : 'pick')}
+            >
+              Crop &amp; Fit
+            </button>
+            <button
+              type="button"
+              class={step === 'sheet' ? 'mode-btn active' : 'mode-btn'}
+              onClick={() => {
+                if (step !== 'sheet') setReturnStep(step);
+                setStep('sheet');
+              }}
+            >
+              4×6 Print Sheet
+            </button>
+          </div>
+
+          <span class="trust-pill">
+            <span class="trust-dot" aria-hidden="true" />
+            Offline · 0 B sent
+          </span>
+        </div>
       </header>
+
+      {inCropFlow && (
+        <div class="stepper" aria-label="Progress">
+          <div class={step === 'pick' ? 'step-pill active' : 'step-pill done'}>
+            <span class="step-num">1</span>
+            <span>Portal &amp; Photo</span>
+          </div>
+          <div
+            class={
+              step === 'crop'
+                ? 'step-pill active'
+                : step === 'result'
+                  ? 'step-pill done'
+                  : 'step-pill'
+            }
+          >
+            <span class="step-num">2</span>
+            <span>Frame &amp; Crop</span>
+          </div>
+          <div class={step === 'result' ? 'step-pill active' : 'step-pill'}>
+            <span class="step-num">3</span>
+            <span>Save &amp; Print</span>
+          </div>
+        </div>
+      )}
 
       {step === 'pick' && (
         <PortalPicker
@@ -233,10 +298,6 @@ export function App() {
           onRuleTextChange={handleRuleTextChange}
           onUpdateActiveSpec={(spec) => setActiveSpec(spec)}
           onPickFile={handlePickFile}
-          onOpenPrintSheet={() => {
-            setReturnStep('pick');
-            setStep('sheet');
-          }}
         />
       )}
 

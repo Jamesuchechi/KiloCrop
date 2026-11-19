@@ -18,8 +18,10 @@ export function PipelineStatsDrawer(props: PipelineStatsDrawerProps) {
   return (
     <footer class="footer">
       <div class="footer-line">
-        <span>Offline-ready · 0 B sent</span>
-        <span>·</span>
+        <span class="footer-text">Offline-ready · 0 B sent</span>
+        <span class="footer-sep" aria-hidden="true">
+          ·
+        </span>
         <button
           type="button"
           class="btn-link"
@@ -28,11 +30,15 @@ export function PipelineStatsDrawer(props: PipelineStatsDrawerProps) {
         >
           Pipeline stats
         </button>
-        <span>·</span>
+        <span class="footer-sep" aria-hidden="true">
+          ·
+        </span>
         <a class="btn-link" href={REPORT_LIMIT_URL} target="_blank" rel="noopener noreferrer">
           Report a wrong limit
         </a>
-        <span>·</span>
+        <span class="footer-sep" aria-hidden="true">
+          ·
+        </span>
         <a class="btn-link" href="/guides/">
           Portal guides
         </a>

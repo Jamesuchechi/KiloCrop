@@ -46,7 +46,7 @@ export function CropEditor(props: CropEditorProps) {
   const pinchStartRef = useRef<{ dist: number; zoom: number } | null>(null);
   const rafRef = useRef<number | null>(null);
 
-  const [stageSize, setStageSize] = useState({ width: 340, height: 340 });
+  const [stageSize, setStageSize] = useState({ width: 340, height: 323 });
   const [zoomLabel, setZoomLabel] = useState(1);
   const [showGuide, setShowGuide] = useState(true);
 
@@ -86,7 +86,7 @@ export function CropEditor(props: CropEditorProps) {
 
     ctx.save();
     ctx.scale(dpr, dpr);
-    ctx.fillStyle = '#0f172a';
+    ctx.fillStyle = '#0b1220';
     ctx.fillRect(0, 0, stageW, stageH);
 
     const { fx, fy, fw, fh } = computeFrame(stageW, stageH, targetAspect);
@@ -103,7 +103,7 @@ export function CropEditor(props: CropEditorProps) {
     }
 
     // Dimmed outer scrim outside the crop box
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.58)';
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.62)';
     ctx.fillRect(0, 0, stageW, fy);
     ctx.fillRect(0, fy + fh, stageW, stageH - (fy + fh));
     ctx.fillRect(0, fy, fx, fh);
@@ -115,7 +115,7 @@ export function CropEditor(props: CropEditorProps) {
     ctx.strokeRect(fx, fy, fw, fh);
 
     // Subtle thirds guide
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(fx + fw / 3, fy);
@@ -139,15 +139,14 @@ export function CropEditor(props: CropEditorProps) {
       const eyeY = fy + fh * eyePct;
       const ovalCenterY = eyeY + ovalH * 0.05;
 
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.9)';
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.92)';
       ctx.lineWidth = 1.5;
       ctx.setLineDash([5, 4]);
       ctx.beginPath();
       ctx.ellipse(fx + fw / 2, ovalCenterY, ovalW / 2, ovalH / 2, 0, 0, Math.PI * 2);
       ctx.stroke();
 
-      // Eye-line band
-      ctx.strokeStyle = 'rgba(34, 197, 94, 0.85)';
+      ctx.strokeStyle = 'rgba(52, 211, 153, 0.9)';
       ctx.beginPath();
       ctx.moveTo(fx + fw * 0.15, eyeY);
       ctx.lineTo(fx + fw * 0.85, eyeY);
@@ -342,96 +341,109 @@ export function CropEditor(props: CropEditorProps) {
   }
 
   return (
-    <section class="card stack">
-      <div class="row-between">
-        <div>
-          <strong>Crop for {spec.shortLabel ?? spec.title}</strong>
-          <div class="muted">
-            Target: {outDims.width}×{outDims.height} px
-            {spec.output.fileSizeKb.max ? ` · ≤ ${spec.output.fileSizeKb.max} KB` : ''}
-          </div>
+    <section class="workbench">
+      <div class="card stage-card stack">
+        <div class="stage-head">
+          <span class="stage-title">Interactive Darkroom</span>
+          <span>
+            {outDims.width}×{outDims.height} px
+          </span>
         </div>
-        <button type="button" class="btn-link" onClick={onChangePhoto}>
-          Change photo
-        </button>
+
+        <div ref={stageRef} class="crop-stage">
+          <canvas
+            ref={canvasRef}
+            tabIndex={0}
+            role="application"
+            aria-label="Photo crop frame. Drag or use arrow keys to move, pinch or plus and minus keys to zoom."
+            class="crop-canvas"
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
+            onWheel={(e) => {
+              e.preventDefault();
+              applyZoom(viewRef.current.zoom + (e.deltaY < 0 ? 0.12 : -0.12));
+            }}
+            onKeyDown={handleKeyDown}
+          />
+        </div>
       </div>
 
-      {blockingIssue && (
-        <div class="banner banner-err" role="alert">
-          <strong>{blockingIssue.title}:</strong> {blockingIssue.detail}
-        </div>
-      )}
-
-      {advisoryIssues.map((issue) => (
-        <div key={issue.code} class="banner banner-warn">
-          <strong>{issue.title}:</strong> {issue.detail}
-        </div>
-      ))}
-
-      {error && (
-        <div class="banner banner-err" role="alert">
-          {error}
-        </div>
-      )}
-
-      {!blockingIssue && (
-        <>
-          <div ref={stageRef} class="crop-stage">
-            <canvas
-              ref={canvasRef}
-              tabIndex={0}
-              role="application"
-              aria-label="Photo crop frame. Drag or use arrow keys to move, pinch or plus and minus keys to zoom."
-              class="crop-canvas"
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerCancel={handlePointerUp}
-              onWheel={(e) => {
-                e.preventDefault();
-                applyZoom(viewRef.current.zoom + (e.deltaY < 0 ? 0.12 : -0.12));
-              }}
-              onKeyDown={handleKeyDown}
-            />
+      <div class="card stack">
+        <div class="row-between">
+          <div>
+            <strong>Crop for {spec.shortLabel ?? spec.title}</strong>
+            <div class="muted">
+              Output: {outDims.width}×{outDims.height} px
+              {spec.output.fileSizeKb.max ? ` · ≤ ${spec.output.fileSizeKb.max} KB` : ''}
+            </div>
           </div>
-
-          <div class="controls-row">
-            <label class="zoom-label">
-              <span>Zoom {zoomLabel.toFixed(1)}×</span>
-              <input
-                type="range"
-                min={1}
-                max={4}
-                step={0.05}
-                value={zoomLabel}
-                onInput={(e) => applyZoom(Number((e.target as HTMLInputElement).value))}
-              />
-            </label>
-            <button type="button" class="btn btn-sm" onClick={() => setShowGuide((g) => !g)}>
-              Guide: {showGuide ? 'On' : 'Off'}
-            </button>
-            <button type="button" class="btn btn-sm" onClick={resetView}>
-              Reset
-            </button>
-          </div>
-
-          <p class="muted m-0" aria-live="polite">
-            Drag to center your face inside the oval · Zoom {zoomLabel.toFixed(1)}×
-          </p>
-
-          <button
-            type="button"
-            class="btn btn-primary"
-            disabled={!bitmap || busy}
-            onClick={() => {
-              const rect = computeSourceCropRect();
-              if (rect) onFitPhoto(rect);
-            }}
-          >
-            {busy ? 'Fitting & compressing…' : 'Fit & Save Photo'}
+          <button type="button" class="btn-link" onClick={onChangePhoto}>
+            Change photo
           </button>
-        </>
-      )}
+        </div>
+
+        {blockingIssue && (
+          <div class="banner banner-err" role="alert">
+            <strong>{blockingIssue.title}:</strong> {blockingIssue.detail}
+          </div>
+        )}
+
+        {advisoryIssues.map((issue) => (
+          <div key={issue.code} class="banner banner-warn">
+            <strong>{issue.title}:</strong> {issue.detail}
+          </div>
+        ))}
+
+        {error && (
+          <div class="banner banner-err" role="alert">
+            {error}
+          </div>
+        )}
+
+        {!blockingIssue && (
+          <>
+            <div class="controls-row">
+              <label class="zoom-label">
+                <span>Zoom {zoomLabel.toFixed(1)}×</span>
+                <input
+                  type="range"
+                  min={1}
+                  max={4}
+                  step={0.05}
+                  value={zoomLabel}
+                  onInput={(e) => applyZoom(Number((e.target as HTMLInputElement).value))}
+                />
+              </label>
+              <button type="button" class="btn btn-sm" onClick={() => setShowGuide((g) => !g)}>
+                Guide: {showGuide ? 'On' : 'Off'}
+              </button>
+              <button type="button" class="btn btn-sm" onClick={resetView}>
+                Reset
+              </button>
+            </div>
+
+            <div class="guide-legend" aria-live="polite">
+              Drag or pinch to center your head inside the dashed blue oval and align eyes near the
+              green line. Keyboard: arrows pan, <code>+</code>/<code>-</code> zoom, <code>0</code>{' '}
+              resets.
+            </div>
+
+            <button
+              type="button"
+              class="btn btn-primary"
+              disabled={!bitmap || busy}
+              onClick={() => {
+                const rect = computeSourceCropRect();
+                if (rect) onFitPhoto(rect);
+              }}
+            >
+              {busy ? 'Fitting & compressing…' : 'Fit & Save Photo'}
+            </button>
+          </>
+        )}
+      </div>
     </section>
   );
 }
