@@ -1,0 +1,29 @@
+{
+  "id": "intl-print-35x45mm",
+  "schemaVersion": 1,
+  "title": "Standard 35 × 45 mm Passport Print (300 DPI)",
+  "shortLabel": "35×45 mm",
+  "region": "INTL",
+  "tags": ["print", "35x45", "icao", "schengen", "4x6"],
+  "status": "checked",
+  "output": {
+    "units": "mm",
+    "width": 35,
+    "height": 45,
+    "dpi": 300,
+    "format": "jpeg",
+    "fileSizeKb": { "min": null, "max": 500 }
+  },
+  "backgroundHint": "plain light or white",
+  "framing": {
+    "headHeightPct": [70, 80],
+    "eyeLineFromTopPct": [40, 50]
+  },
+  "provenance": {
+    "kind": "public-page",
+    "sourceUrl": "https://www.icao.int",
+    "archiveUrl": null,
+    "verifiedOn": "2026-11-19",
+    "notes": "Standard 35x45 mm (413x531 px at 300 DPI) — tiles 8-up rotated on a 4x6 inch print sheet."
+  }
+}

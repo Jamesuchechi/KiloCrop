@@ -1,0 +1,2 @@
+minimumReleaseAgeExclude:
+  - fast-check@4.10.3

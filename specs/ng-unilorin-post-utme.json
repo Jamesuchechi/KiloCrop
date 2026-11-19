@@ -1,0 +1,29 @@
+{
+  "id": "ng-unilorin-post-utme",
+  "schemaVersion": 1,
+  "title": "UNILORIN Post-UTME Screening",
+  "shortLabel": "UNILORIN",
+  "region": "NG",
+  "tags": ["nigeria", "unilorin", "post-utme", "university", "25kb", "red"],
+  "status": "community",
+  "output": {
+    "units": "px",
+    "width": 600,
+    "height": 600,
+    "dpi": 200,
+    "format": "jpeg",
+    "fileSizeKb": { "min": null, "max": 25 }
+  },
+  "backgroundHint": "uniform red",
+  "framing": {
+    "headHeightPct": [70, 80],
+    "eyeLineFromTopPct": [40, 50]
+  },
+  "provenance": {
+    "kind": "authenticated-portal",
+    "sourceUrl": "https://portal.unilorin.edu.ng",
+    "archiveUrl": null,
+    "verifiedOn": "2026-11-19",
+    "notes": "Login portal — confirm active Post-UTME prompt. Uniform red background, >= 600x600 px, <= 25 KB, >= 200 DPI."
+  }
+}

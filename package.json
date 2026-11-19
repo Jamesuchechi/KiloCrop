@@ -1,0 +1,39 @@
+{
+  "name": "kilocrop",
+  "private": true,
+  "version": "0.1.0-alpha.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "validate:specs": "node --experimental-strip-types scripts/validate-specs.ts",
+    "build:guides": "node --experimental-strip-types scripts/build-guides.ts",
+    "build:sw": "node --experimental-strip-types scripts/build-sw.ts",
+    "check:budget": "node --experimental-strip-types scripts/check-bundle-budget.ts",
+    "build": "pnpm validate:specs && vite build && pnpm build:guides && pnpm build:sw && pnpm check:budget",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "preact": "^10.29.8"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "1.65.1",
+    "@preact/preset-vite": "^2.10.6",
+    "@types/node": "^24.0.0",
+    "eslint": "^10.15.0",
+    "eslint-import-resolver-typescript": "^4.4.5",
+    "eslint-plugin-boundaries": "^7.4.4",
+    "fast-check": "^4.10.3",
+    "prettier": "^3.10.1",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.73.0",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1"
+  }
+}

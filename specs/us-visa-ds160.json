@@ -1,0 +1,29 @@
+{
+  "id": "us-visa-ds160",
+  "schemaVersion": 1,
+  "title": "U.S. Visa Photo (Form DS-160)",
+  "shortLabel": "US DS-160",
+  "region": "US",
+  "tags": ["usa", "us", "visa", "ds160", "ds-160", "240kb"],
+  "status": "checked",
+  "output": {
+    "units": "px",
+    "width": 600,
+    "height": 600,
+    "dpi": null,
+    "format": "jpeg",
+    "fileSizeKb": { "min": null, "max": 240 }
+  },
+  "backgroundHint": "plain white or off-white (no digital BG swap)",
+  "framing": {
+    "headHeightPct": [50, 69],
+    "eyeLineFromTopPct": [31, 44]
+  },
+  "provenance": {
+    "kind": "public-page",
+    "sourceUrl": "https://travel.state.gov/content/travel/en/us-visas/visa-information-resources/photos/digital-image-requirements.html",
+    "archiveUrl": null,
+    "verifiedOn": "2026-11-19",
+    "notes": "600x600 to 1200x1200 px square JPEG (sRGB), <= 240 KB, no glasses, no digital background alteration."
+  }
+}

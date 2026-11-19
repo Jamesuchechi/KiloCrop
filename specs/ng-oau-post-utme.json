@@ -1,0 +1,29 @@
+{
+  "id": "ng-oau-post-utme",
+  "schemaVersion": 1,
+  "title": "OAU Portal / Screening",
+  "shortLabel": "OAU",
+  "region": "NG",
+  "tags": ["nigeria", "oau", "post-utme", "university", "sky-blue"],
+  "status": "community",
+  "output": {
+    "units": "px",
+    "width": 360,
+    "height": 400,
+    "dpi": null,
+    "format": "jpeg",
+    "fileSizeKb": { "min": null, "max": 50 }
+  },
+  "backgroundHint": "light sky-blue",
+  "framing": {
+    "headHeightPct": [65, 80],
+    "eyeLineFromTopPct": [40, 50]
+  },
+  "provenance": {
+    "kind": "authenticated-portal",
+    "sourceUrl": "https://admissions.oauife.edu.ng",
+    "archiveUrl": null,
+    "verifiedOn": "2026-11-19",
+    "notes": "Login portal — confirm module KB cap (often 30-50 KB). Strictly specifies light sky-blue background."
+  }
+}

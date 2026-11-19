@@ -1,0 +1,29 @@
+{
+  "id": "ng-lasu-post-utme",
+  "schemaVersion": 1,
+  "title": "LASU Screening Portal",
+  "shortLabel": "LASU",
+  "region": "NG",
+  "tags": ["nigeria", "lasu", "post-utme", "university", "20kb"],
+  "status": "community",
+  "output": {
+    "units": "px",
+    "width": 300,
+    "height": 300,
+    "dpi": null,
+    "format": "jpeg",
+    "fileSizeKb": { "min": null, "max": 20 }
+  },
+  "backgroundHint": "plain white",
+  "framing": {
+    "headHeightPct": [65, 80],
+    "eyeLineFromTopPct": [40, 50]
+  },
+  "provenance": {
+    "kind": "authenticated-portal",
+    "sourceUrl": "https://lasu.edu.ng",
+    "archiveUrl": null,
+    "verifiedOn": "2026-11-19",
+    "notes": "Login portal — confirm exact pixel dimensions on active screening form (300x300 px placeholder; <= 20 KB JPEG)."
+  }
+}

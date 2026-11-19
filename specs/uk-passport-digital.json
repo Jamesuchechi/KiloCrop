@@ -1,0 +1,29 @@
+{
+  "id": "uk-passport-digital",
+  "schemaVersion": 1,
+  "title": "UK Digital Passport Photo (GOV.UK)",
+  "shortLabel": "UK Passport",
+  "region": "UK",
+  "tags": ["uk", "passport", "gov.uk", "50kb"],
+  "status": "checked",
+  "output": {
+    "units": "px",
+    "width": 600,
+    "height": 750,
+    "dpi": null,
+    "format": "jpeg",
+    "fileSizeKb": { "min": 50, "max": 10240 }
+  },
+  "backgroundHint": "plain light-coloured (no digital alteration)",
+  "framing": {
+    "headHeightPct": [55, 72],
+    "eyeLineFromTopPct": [38, 50]
+  },
+  "provenance": {
+    "kind": "public-page",
+    "sourceUrl": "https://www.gov.uk/photos-for-passports",
+    "archiveUrl": null,
+    "verifiedOn": "2026-11-19",
+    "notes": "Min 600x750 px, 50 KB to 10 MB. GOV.UK advises leaving room around your head so their own portal tool can crop."
+  }
+}

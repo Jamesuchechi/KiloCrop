@@ -1,0 +1,29 @@
+{
+  "id": "example-portal-photo",
+  "schemaVersion": 1,
+  "title": "Example Portal Photo (Template — Draft)",
+  "shortLabel": "Example",
+  "region": "NG",
+  "tags": ["example"],
+  "status": "draft",
+  "output": {
+    "units": "px",
+    "width": 600,
+    "height": 600,
+    "dpi": null,
+    "format": "jpeg",
+    "fileSizeKb": { "min": null, "max": 50 }
+  },
+  "backgroundHint": "plain white",
+  "framing": {
+    "headHeightPct": [65, 80],
+    "eyeLineFromTopPct": [40, 50]
+  },
+  "provenance": {
+    "kind": "public-page",
+    "sourceUrl": null,
+    "archiveUrl": null,
+    "verifiedOn": null,
+    "notes": "Template only; stays excluded while status is draft."
+  }
+}

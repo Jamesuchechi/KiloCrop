@@ -1,0 +1,399 @@
+[
+  {
+    "id": "ng-nis-passport-online",
+    "schemaVersion": 1,
+    "title": "Nigerian Passport (NIS Online Portal)",
+    "shortLabel": "NIS Passport",
+    "region": "NG",
+    "tags": [
+      "nigeria",
+      "passport",
+      "nis",
+      "immigration",
+      "600x800"
+    ],
+    "status": "checked",
+    "output": {
+      "units": "px",
+      "width": 600,
+      "height": 800,
+      "dpi": null,
+      "format": "jpeg",
+      "fileSizeKb": {
+        "min": null,
+        "max": 2048
+      }
+    },
+    "backgroundHint": "plain white or off-white",
+    "framing": {
+      "headHeightPct": [
+        65,
+        80
+      ],
+      "eyeLineFromTopPct": [
+        40,
+        50
+      ]
+    },
+    "provenance": {
+      "kind": "public-page",
+      "sourceUrl": "https://passport.immigration.gov.ng",
+      "archiveUrl": null,
+      "verifiedOn": "2026-11-19",
+      "notes": "Portrait 600x800 px, under 2 MB, plain white background, no glasses. Test with NIS Test Photo Upload tool."
+    }
+  },
+  {
+    "id": "ng-lasu-post-utme",
+    "schemaVersion": 1,
+    "title": "LASU Screening Portal",
+    "shortLabel": "LASU",
+    "region": "NG",
+    "tags": [
+      "nigeria",
+      "lasu",
+      "post-utme",
+      "university",
+      "20kb"
+    ],
+    "status": "community",
+    "output": {
+      "units": "px",
+      "width": 300,
+      "height": 300,
+      "dpi": null,
+      "format": "jpeg",
+      "fileSizeKb": {
+        "min": null,
+        "max": 20
+      }
+    },
+    "backgroundHint": "plain white",
+    "framing": {
+      "headHeightPct": [
+        65,
+        80
+      ],
+      "eyeLineFromTopPct": [
+        40,
+        50
+      ]
+    },
+    "provenance": {
+      "kind": "authenticated-portal",
+      "sourceUrl": "https://lasu.edu.ng",
+      "archiveUrl": null,
+      "verifiedOn": "2026-11-19",
+      "notes": "Login portal — confirm exact pixel dimensions on active screening form (300x300 px placeholder; <= 20 KB JPEG)."
+    }
+  },
+  {
+    "id": "ng-nysc-portal",
+    "schemaVersion": 1,
+    "title": "NYSC Mobilization Portal",
+    "shortLabel": "NYSC",
+    "region": "NG",
+    "tags": [
+      "nigeria",
+      "nysc",
+      "mobilization",
+      "200x200",
+      "15kb"
+    ],
+    "status": "community",
+    "output": {
+      "units": "px",
+      "width": 200,
+      "height": 200,
+      "dpi": null,
+      "format": "jpeg",
+      "fileSizeKb": {
+        "min": 7,
+        "max": 15
+      }
+    },
+    "backgroundHint": "plain white or off-white",
+    "framing": {
+      "headHeightPct": [
+        65,
+        80
+      ],
+      "eyeLineFromTopPct": [
+        40,
+        50
+      ]
+    },
+    "provenance": {
+      "kind": "authenticated-portal",
+      "sourceUrl": "https://portal.nysc.org.ng",
+      "archiveUrl": null,
+      "verifiedOn": "2026-11-19",
+      "notes": "Login portal — confirm limits on active registration page (typically 200x200 px, 7-15 KB, white background)."
+    }
+  },
+  {
+    "id": "ng-oau-post-utme",
+    "schemaVersion": 1,
+    "title": "OAU Portal / Screening",
+    "shortLabel": "OAU",
+    "region": "NG",
+    "tags": [
+      "nigeria",
+      "oau",
+      "post-utme",
+      "university",
+      "sky-blue"
+    ],
+    "status": "community",
+    "output": {
+      "units": "px",
+      "width": 360,
+      "height": 400,
+      "dpi": null,
+      "format": "jpeg",
+      "fileSizeKb": {
+        "min": null,
+        "max": 50
+      }
+    },
+    "backgroundHint": "light sky-blue",
+    "framing": {
+      "headHeightPct": [
+        65,
+        80
+      ],
+      "eyeLineFromTopPct": [
+        40,
+        50
+      ]
+    },
+    "provenance": {
+      "kind": "authenticated-portal",
+      "sourceUrl": "https://admissions.oauife.edu.ng",
+      "archiveUrl": null,
+      "verifiedOn": "2026-11-19",
+      "notes": "Login portal — confirm module KB cap (often 30-50 KB). Strictly specifies light sky-blue background."
+    }
+  },
+  {
+    "id": "ng-unilorin-post-utme",
+    "schemaVersion": 1,
+    "title": "UNILORIN Post-UTME Screening",
+    "shortLabel": "UNILORIN",
+    "region": "NG",
+    "tags": [
+      "nigeria",
+      "unilorin",
+      "post-utme",
+      "university",
+      "25kb",
+      "red"
+    ],
+    "status": "community",
+    "output": {
+      "units": "px",
+      "width": 600,
+      "height": 600,
+      "dpi": 200,
+      "format": "jpeg",
+      "fileSizeKb": {
+        "min": null,
+        "max": 25
+      }
+    },
+    "backgroundHint": "uniform red",
+    "framing": {
+      "headHeightPct": [
+        70,
+        80
+      ],
+      "eyeLineFromTopPct": [
+        40,
+        50
+      ]
+    },
+    "provenance": {
+      "kind": "authenticated-portal",
+      "sourceUrl": "https://portal.unilorin.edu.ng",
+      "archiveUrl": null,
+      "verifiedOn": "2026-11-19",
+      "notes": "Login portal — confirm active Post-UTME prompt. Uniform red background, >= 600x600 px, <= 25 KB, >= 200 DPI."
+    }
+  },
+  {
+    "id": "ng-waec-gce",
+    "schemaVersion": 1,
+    "title": "WAEC GCE (Private Candidate)",
+    "shortLabel": "WAEC GCE",
+    "region": "NG",
+    "tags": [
+      "nigeria",
+      "waec",
+      "gce",
+      "exam",
+      "30kb"
+    ],
+    "status": "community",
+    "output": {
+      "units": "px",
+      "width": 275,
+      "height": 314,
+      "dpi": null,
+      "format": "jpeg",
+      "fileSizeKb": {
+        "min": 5,
+        "max": 30
+      }
+    },
+    "backgroundHint": "plain white or red (check series prompt)",
+    "framing": {
+      "headHeightPct": [
+        65,
+        80
+      ],
+      "eyeLineFromTopPct": [
+        40,
+        50
+      ]
+    },
+    "provenance": {
+      "kind": "authenticated-portal",
+      "sourceUrl": "https://registration.waecdirect.org",
+      "archiveUrl": null,
+      "verifiedOn": "2026-11-19",
+      "notes": "Login portal — confirm background colour and limits on active GCE series prompt. School WAEC uses live biometric capture."
+    }
+  },
+  {
+    "id": "us-visa-ds160",
+    "schemaVersion": 1,
+    "title": "U.S. Visa Photo (Form DS-160)",
+    "shortLabel": "US DS-160",
+    "region": "US",
+    "tags": [
+      "usa",
+      "us",
+      "visa",
+      "ds160",
+      "ds-160",
+      "240kb"
+    ],
+    "status": "checked",
+    "output": {
+      "units": "px",
+      "width": 600,
+      "height": 600,
+      "dpi": null,
+      "format": "jpeg",
+      "fileSizeKb": {
+        "min": null,
+        "max": 240
+      }
+    },
+    "backgroundHint": "plain white or off-white (no digital BG swap)",
+    "framing": {
+      "headHeightPct": [
+        50,
+        69
+      ],
+      "eyeLineFromTopPct": [
+        31,
+        44
+      ]
+    },
+    "provenance": {
+      "kind": "public-page",
+      "sourceUrl": "https://travel.state.gov/content/travel/en/us-visas/visa-information-resources/photos/digital-image-requirements.html",
+      "archiveUrl": null,
+      "verifiedOn": "2026-11-19",
+      "notes": "600x600 to 1200x1200 px square JPEG (sRGB), <= 240 KB, no glasses, no digital background alteration."
+    }
+  },
+  {
+    "id": "uk-passport-digital",
+    "schemaVersion": 1,
+    "title": "UK Digital Passport Photo (GOV.UK)",
+    "shortLabel": "UK Passport",
+    "region": "UK",
+    "tags": [
+      "uk",
+      "passport",
+      "gov.uk",
+      "50kb"
+    ],
+    "status": "checked",
+    "output": {
+      "units": "px",
+      "width": 600,
+      "height": 750,
+      "dpi": null,
+      "format": "jpeg",
+      "fileSizeKb": {
+        "min": 50,
+        "max": 10240
+      }
+    },
+    "backgroundHint": "plain light-coloured (no digital alteration)",
+    "framing": {
+      "headHeightPct": [
+        55,
+        72
+      ],
+      "eyeLineFromTopPct": [
+        38,
+        50
+      ]
+    },
+    "provenance": {
+      "kind": "public-page",
+      "sourceUrl": "https://www.gov.uk/photos-for-passports",
+      "archiveUrl": null,
+      "verifiedOn": "2026-11-19",
+      "notes": "Min 600x750 px, 50 KB to 10 MB. GOV.UK advises leaving room around your head so their own portal tool can crop."
+    }
+  },
+  {
+    "id": "intl-print-35x45mm",
+    "schemaVersion": 1,
+    "title": "Standard 35 × 45 mm Passport Print (300 DPI)",
+    "shortLabel": "35×45 mm",
+    "region": "INTL",
+    "tags": [
+      "print",
+      "35x45",
+      "icao",
+      "schengen",
+      "4x6"
+    ],
+    "status": "checked",
+    "output": {
+      "units": "mm",
+      "width": 35,
+      "height": 45,
+      "dpi": 300,
+      "format": "jpeg",
+      "fileSizeKb": {
+        "min": null,
+        "max": 500
+      }
+    },
+    "backgroundHint": "plain light or white",
+    "framing": {
+      "headHeightPct": [
+        70,
+        80
+      ],
+      "eyeLineFromTopPct": [
+        40,
+        50
+      ]
+    },
+    "provenance": {
+      "kind": "public-page",
+      "sourceUrl": "https://www.icao.int",
+      "archiveUrl": null,
+      "verifiedOn": "2026-11-19",
+      "notes": "Standard 35x45 mm (413x531 px at 300 DPI) — tiles 8-up rotated on a 4x6 inch print sheet."
+    }
+  }
+]

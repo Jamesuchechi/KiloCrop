@@ -1,0 +1,29 @@
+{
+  "id": "ng-nysc-portal",
+  "schemaVersion": 1,
+  "title": "NYSC Mobilization Portal",
+  "shortLabel": "NYSC",
+  "region": "NG",
+  "tags": ["nigeria", "nysc", "mobilization", "200x200", "15kb"],
+  "status": "community",
+  "output": {
+    "units": "px",
+    "width": 200,
+    "height": 200,
+    "dpi": null,
+    "format": "jpeg",
+    "fileSizeKb": { "min": 7, "max": 15 }
+  },
+  "backgroundHint": "plain white or off-white",
+  "framing": {
+    "headHeightPct": [65, 80],
+    "eyeLineFromTopPct": [40, 50]
+  },
+  "provenance": {
+    "kind": "authenticated-portal",
+    "sourceUrl": "https://portal.nysc.org.ng",
+    "archiveUrl": null,
+    "verifiedOn": "2026-11-19",
+    "notes": "Login portal — confirm limits on active registration page (typically 200x200 px, 7-15 KB, white background)."
+  }
+}

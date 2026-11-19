@@ -1,0 +1,29 @@
+{
+  "id": "ng-nis-passport-online",
+  "schemaVersion": 1,
+  "title": "Nigerian Passport (NIS Online Portal)",
+  "shortLabel": "NIS Passport",
+  "region": "NG",
+  "tags": ["nigeria", "passport", "nis", "immigration", "600x800"],
+  "status": "checked",
+  "output": {
+    "units": "px",
+    "width": 600,
+    "height": 800,
+    "dpi": null,
+    "format": "jpeg",
+    "fileSizeKb": { "min": null, "max": 2048 }
+  },
+  "backgroundHint": "plain white or off-white",
+  "framing": {
+    "headHeightPct": [65, 80],
+    "eyeLineFromTopPct": [40, 50]
+  },
+  "provenance": {
+    "kind": "public-page",
+    "sourceUrl": "https://passport.immigration.gov.ng",
+    "archiveUrl": null,
+    "verifiedOn": "2026-11-19",
+    "notes": "Portrait 600x800 px, under 2 MB, plain white background, no glasses. Test with NIS Test Photo Upload tool."
+  }
+}

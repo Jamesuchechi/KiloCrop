@@ -1,0 +1,29 @@
+{
+  "id": "ng-waec-gce",
+  "schemaVersion": 1,
+  "title": "WAEC GCE (Private Candidate)",
+  "shortLabel": "WAEC GCE",
+  "region": "NG",
+  "tags": ["nigeria", "waec", "gce", "exam", "30kb"],
+  "status": "community",
+  "output": {
+    "units": "px",
+    "width": 275,
+    "height": 314,
+    "dpi": null,
+    "format": "jpeg",
+    "fileSizeKb": { "min": 5, "max": 30 }
+  },
+  "backgroundHint": "plain white or red (check series prompt)",
+  "framing": {
+    "headHeightPct": [65, 80],
+    "eyeLineFromTopPct": [40, 50]
+  },
+  "provenance": {
+    "kind": "authenticated-portal",
+    "sourceUrl": "https://registration.waecdirect.org",
+    "archiveUrl": null,
+    "verifiedOn": "2026-11-19",
+    "notes": "Login portal — confirm background colour and limits on active GCE series prompt. School WAEC uses live biometric capture."
+  }
+}
