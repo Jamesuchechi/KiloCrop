@@ -64,8 +64,12 @@ const server = createServer((req, res) => {
     filePath = join(filePath, 'index.html');
   }
   if (!existsSync(filePath)) {
-    res.writeHead(404).end('Not found');
-    return;
+    if (/^\/(print|inspect|batch|compare|documents|presets|web-kit)\/?$/.test(urlPath)) {
+      filePath = join(DIST_DIR, 'index.html');
+    } else {
+      res.writeHead(404).end('Not found');
+      return;
+    }
   }
 
   const ext = extname(filePath).toLowerCase();

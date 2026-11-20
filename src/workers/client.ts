@@ -1,8 +1,11 @@
-import { runExport, runInspect, runPreview } from '../engine/pipeline';
+import { closeBitmap, decodeWorkingBitmap } from '../engine/decode';
+import { runDocumentClean } from '../engine/document';
+import { runExport, runInspect, runPreview, runResizeCompress } from '../engine/pipeline';
 import { renderPrintSheet, type PrintSheetInput } from '../engine/print-sheet';
 import type {
   BitmapLike,
   CanvasLike,
+  DocumentCleanOptions,
   EncodeResult,
   EnginePlatform,
   InspectReport,
@@ -10,8 +13,11 @@ import type {
   PrintSheetLayout,
   PrintSheetResult,
   Rect,
+  ResizeCompressOptions,
   Spec,
+  WebKitOptions,
 } from '../engine/types';
+import { runWebKitExport } from '../engine/web-kit';
 import type { EngineClient, WorkerRequest, WorkerResponse } from './protocol';
 
 function createDomFallbackPlatform(): EnginePlatform {
@@ -130,6 +136,30 @@ function createWorkerClient(): EngineClient {
         stats: res.stats,
       };
     },
+    async resizeCompress(sourceKey, blob, options, report, signal) {
+      const res = await callWorker(
+        (id) => ({
+          id,
+          type: 'resize-compress',
+          sourceKey,
+          blob,
+          options,
+          report,
+        }),
+        signal,
+      );
+      if (res.type !== 'resize-compress') throw new Error('Unexpected worker response');
+      return {
+        result: {
+          ...res.resultMeta,
+          blob: new Blob([res.buffer], { type: res.mime }),
+        },
+        stats: res.stats,
+      };
+    },
+    clearSource() {
+      worker.postMessage({ id: nextId++, type: 'clear-source' } satisfies WorkerRequest);
+    },
     async printSheet(layout, inputs, options) {
       const res = await callWorker(
         (id) => ({
@@ -149,6 +179,31 @@ function createWorkerClient(): EngineClient {
         blob: new Blob([res.buffer], { type: 'image/png' }),
       };
     },
+    async documentClean(sourceKey, blob, options, report, signal) {
+      const res = await callWorker(
+        (id) => ({ id, type: 'document-clean', sourceKey, blob, options, report }),
+        signal,
+      );
+      if (res.type !== 'document-clean') throw new Error('Unexpected worker response');
+      return {
+        ...res.resultMeta,
+        blob: new Blob([res.buffer], { type: res.mime }),
+      };
+    },
+    async webKitExport(sourceKey, blob, options, report, signal) {
+      const res = await callWorker(
+        (id) => ({ id, type: 'web-kit', sourceKey, blob, options, report }),
+        signal,
+      );
+      if (res.type !== 'web-kit') throw new Error('Unexpected worker response');
+      return {
+        ...res.resultMeta,
+        assets: res.assetsMeta.map((meta, idx) => ({
+          ...meta,
+          blob: new Blob([res.buffers[idx]!], { type: meta.mime }),
+        })),
+      };
+    },
     dispose() {
       for (const [id, job] of pending.entries()) {
         pending.delete(id);
@@ -162,6 +217,15 @@ function createWorkerClient(): EngineClient {
 
 function createMainThreadClient(): EngineClient {
   const platform = createDomFallbackPlatform();
+  let cachedWorking: { sourceKey: string; maxEdge: number; bitmap: BitmapLike } | null = null;
+
+  function clearCachedWorking(): void {
+    if (cachedWorking) {
+      closeBitmap(cachedWorking.bitmap);
+      cachedWorking = null;
+    }
+  }
+
   return {
     mode: 'main-thread',
     inspect: (blob, fileName, signal) => runInspect(blob, fileName, signal),
@@ -175,6 +239,48 @@ function createMainThreadClient(): EngineClient {
       options?: { signal?: AbortSignal; useCropAtDecode?: boolean },
     ): Promise<{ result: EncodeResult; stats: PipelineStats }> =>
       runExport(blob, spec, cropRect, report, platform, options),
+    async resizeCompress(
+      sourceKey: string,
+      blob: Blob,
+      options: ResizeCompressOptions,
+      report: InspectReport,
+      signal?: AbortSignal,
+    ) {
+      if (signal?.aborted) {
+        throw new DOMException('Operation aborted', 'AbortError');
+      }
+      const neededMaxEdge = Math.min(
+        4000,
+        Math.max(3200, options.targetWidth ?? 0, options.targetHeight ?? 0),
+      );
+      let working: BitmapLike;
+      if (
+        cachedWorking &&
+        cachedWorking.sourceKey === sourceKey &&
+        cachedWorking.maxEdge >= neededMaxEdge
+      ) {
+        working = cachedWorking.bitmap;
+      } else {
+        clearCachedWorking();
+        const decoded = await decodeWorkingBitmap(
+          blob,
+          report.orientedDimensions,
+          neededMaxEdge,
+          platform,
+        );
+        if (signal?.aborted) {
+          closeBitmap(decoded);
+          throw new DOMException('Operation aborted', 'AbortError');
+        }
+        clearCachedWorking();
+        cachedWorking = { sourceKey, maxEdge: neededMaxEdge, bitmap: decoded };
+        working = decoded;
+      }
+      return runResizeCompress(working, options, report, platform, signal);
+    },
+    clearSource() {
+      clearCachedWorking();
+    },
     printSheet: (
       layout: PrintSheetLayout,
       inputs: PrintSheetInput[],
@@ -185,8 +291,84 @@ function createMainThreadClient(): EngineClient {
         signal?: AbortSignal;
       },
     ): Promise<PrintSheetResult> => renderPrintSheet(layout, inputs, platform, options),
+    async documentClean(
+      sourceKey: string,
+      blob: Blob,
+      options: DocumentCleanOptions,
+      report: InspectReport,
+      signal?: AbortSignal,
+    ) {
+      if (signal?.aborted) {
+        throw new DOMException('Operation aborted', 'AbortError');
+      }
+      const neededMaxEdge = Math.min(
+        3600,
+        Math.max(2400, options.targetWidth ?? 0, options.targetHeight ?? 0),
+      );
+      let working: BitmapLike;
+      if (
+        cachedWorking &&
+        cachedWorking.sourceKey === sourceKey &&
+        cachedWorking.maxEdge >= neededMaxEdge
+      ) {
+        working = cachedWorking.bitmap;
+      } else {
+        clearCachedWorking();
+        const decoded = await decodeWorkingBitmap(
+          blob,
+          report.orientedDimensions,
+          neededMaxEdge,
+          platform,
+        );
+        if (signal?.aborted) {
+          closeBitmap(decoded);
+          throw new DOMException('Operation aborted', 'AbortError');
+        }
+        clearCachedWorking();
+        cachedWorking = { sourceKey, maxEdge: neededMaxEdge, bitmap: decoded };
+        working = decoded;
+      }
+      return runDocumentClean(working, options, report, platform, signal);
+    },
+    async webKitExport(
+      sourceKey: string,
+      blob: Blob,
+      options: WebKitOptions,
+      report: InspectReport,
+      signal?: AbortSignal,
+    ) {
+      if (signal?.aborted) {
+        throw new DOMException('Operation aborted', 'AbortError');
+      }
+      const maxReqW = options.widths.reduce((m, w) => Math.max(m, w), 0);
+      const neededMaxEdge = Math.min(4000, Math.max(2400, maxReqW));
+      let working: BitmapLike;
+      if (
+        cachedWorking &&
+        cachedWorking.sourceKey === sourceKey &&
+        cachedWorking.maxEdge >= neededMaxEdge
+      ) {
+        working = cachedWorking.bitmap;
+      } else {
+        clearCachedWorking();
+        const decoded = await decodeWorkingBitmap(
+          blob,
+          report.orientedDimensions,
+          neededMaxEdge,
+          platform,
+        );
+        if (signal?.aborted) {
+          closeBitmap(decoded);
+          throw new DOMException('Operation aborted', 'AbortError');
+        }
+        clearCachedWorking();
+        cachedWorking = { sourceKey, maxEdge: neededMaxEdge, bitmap: decoded };
+        working = decoded;
+      }
+      return runWebKitExport(working, options, report, platform, signal);
+    },
     dispose() {
-      // No background thread to terminate.
+      clearCachedWorking();
     },
   };
 }

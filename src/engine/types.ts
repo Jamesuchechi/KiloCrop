@@ -1,6 +1,9 @@
 export type Units = 'px' | 'mm';
 export type SpecStatus = 'draft' | 'community' | 'checked' | 'stale';
-export type OutputFormat = 'jpeg' | 'png';
+export type OutputFormat = 'jpeg' | 'webp' | 'png';
+export type FitMode = 'inside' | 'fill' | 'pad' | 'stretch';
+export type PadBackdropStyle = 'blur' | 'edge' | 'white' | 'dark';
+export type QualityBand = 'crisp' | 'good' | 'artifacted';
 export type ProvenanceKind =
   'public-page' | 'authenticated-portal' | 'pasted-rule' | 'shared-query';
 
@@ -47,6 +50,12 @@ export interface Rect {
   y: number;
   width: number;
   height: number;
+}
+
+export interface ImageDataLike {
+  readonly width: number;
+  readonly height: number;
+  readonly data: Uint8ClampedArray;
 }
 
 export type ImageContainer = 'jpeg' | 'png' | 'webp' | 'heic' | 'unknown';
@@ -111,6 +120,187 @@ export interface PipelineStats {
   outboundBytes: 0;
 }
 
+export interface FitOptions {
+  targetWidth: number | null;
+  targetHeight: number | null;
+  fit: FitMode;
+  dontEnlarge: boolean;
+  focalX?: number;
+  focalY?: number;
+}
+
+export interface FitPlan {
+  sourceRect: Rect;
+  destRect: Rect;
+  outputDims: Dimensions;
+  effectiveFit: FitMode;
+  wasClampedToSafeArea: boolean;
+  cropped: boolean;
+}
+
+export interface EnhanceOptions {
+  autoContrast: boolean;
+  sharpenPct: number;
+}
+
+export interface QualityAssessment {
+  psnr: number;
+  band: QualityBand;
+  suggestWebp: boolean;
+}
+
+export type DocumentColorMode = 'color-clean' | 'grayscale' | 'bw';
+
+export interface DocumentCleanOptions {
+  targetWidth: number | null;
+  targetHeight: number | null;
+  mode: DocumentColorMode;
+  levelStrength: number;
+  whitenPaper: number;
+  sharpenPct: number;
+  bwBias?: number;
+  format: OutputFormat;
+  quality: number;
+  maxKb: number | null;
+}
+
+export interface DocumentCleanResult {
+  blob: Blob;
+  bytes: number;
+  width: number;
+  height: number;
+  originalWidth: number;
+  originalHeight: number;
+  requestedFormat: OutputFormat;
+  actualFormat: OutputFormat;
+  actualMime: string;
+  quality: number;
+  status: EncodeStatus;
+  shrunkToFitKb: boolean;
+  leveledApplied: boolean;
+  wasClampedToSafeArea: boolean;
+}
+
+export interface WebKitOptions {
+  widths: readonly number[];
+  includeWebp: boolean;
+  includeJpeg: boolean;
+  includeLqip: boolean;
+  quality: number;
+  autoContrast: boolean;
+  sharpenPct: number;
+  assetPrefix: string;
+  altText: string;
+  sizesAttr: string;
+  baseName: string;
+}
+
+export interface WebKitAsset {
+  filename: string;
+  width: number;
+  height: number;
+  format: OutputFormat;
+  mime: string;
+  bytes: number;
+  blob: Blob;
+}
+
+export interface WebKitResult {
+  stem: string;
+  sourceWidth: number;
+  sourceHeight: number;
+  assets: WebKitAsset[];
+  lqipDataUri: string | null;
+  lqipWidth: number;
+  lqipHeight: number;
+  lqipBytes: number;
+  pictureHtml: string;
+}
+
+export interface ResizeCompressOptions {
+  targetWidth: number | null;
+  targetHeight: number | null;
+  fit: FitMode;
+  dontEnlarge: boolean;
+  focalX?: number;
+  focalY?: number;
+  autoFocus?: boolean;
+  backdrop?: PadBackdropStyle;
+  format: OutputFormat;
+  quality: number;
+  minKb: number | null;
+  maxKb: number | null;
+  dpi: number | null;
+  autoContrast: boolean;
+  sharpenPct: number;
+  allowShrinkToFitKb?: boolean;
+  assessQuality?: boolean;
+}
+
+export interface ResizeCompressResult {
+  blob: Blob;
+  bytes: number;
+  width: number;
+  height: number;
+  originalWidth: number;
+  originalHeight: number;
+  requestedFormat: OutputFormat;
+  actualFormat: OutputFormat;
+  actualMime: string;
+  dpi: number | null;
+  quality: number;
+  iterations: number;
+  status: EncodeStatus;
+  paddedBytes: number;
+  shrunkToFitKb: boolean;
+  contrastApplied: boolean;
+  sharpenApplied: boolean;
+  cropped: boolean;
+  wasClampedToSafeArea: boolean;
+  appliedFocalX: number;
+  appliedFocalY: number;
+  qualityAssessment: QualityAssessment | null;
+}
+
+export interface ResizeCompressStats {
+  decodeMs: number;
+  enhanceMs: number;
+  encodeMs: number;
+  totalMs: number;
+  inputBytes: number;
+  outputBytes: number;
+  originalWidth: number;
+  originalHeight: number;
+  outputWidth: number;
+  outputHeight: number;
+  format: OutputFormat;
+  quality: number;
+  iterations: number;
+  status: EncodeStatus;
+  contrastApplied: boolean;
+  sharpenApplied: boolean;
+  fixedIssues: string[];
+  outboundBytes: 0;
+}
+
+export interface SizePreset {
+  id: string;
+  group: 'general' | 'portal' | 'saved';
+  label: string;
+  width: number | null;
+  height: number | null;
+  fit: FitMode;
+  backdrop?: PadBackdropStyle;
+  format?: OutputFormat;
+  minKb?: number | null;
+  maxKb?: number | null;
+  dpi?: number | null;
+  autoContrast?: boolean;
+  sharpenPct?: number;
+  backgroundHint?: string | null;
+  note?: string | null;
+}
+
 export interface BitmapLike {
   readonly width: number;
   readonly height: number;
@@ -123,9 +313,11 @@ export interface CanvasContextLike {
   lineWidth: number;
   font: string;
   textAlign: 'left' | 'center' | 'right' | 'start' | 'end';
+  imageSmoothingEnabled?: boolean;
+  imageSmoothingQuality?: 'low' | 'medium' | 'high';
   fillRect(x: number, y: number, w: number, h: number): void;
   drawImage(
-    image: BitmapLike,
+    image: BitmapLike | CanvasLike,
     sx: number,
     sy: number,
     sw: number,
@@ -135,6 +327,8 @@ export interface CanvasContextLike {
     dw: number,
     dh: number,
   ): void;
+  getImageData?(sx: number, sy: number, sw: number, sh: number): ImageDataLike;
+  putImageData?(imageData: ImageDataLike, dx: number, dy: number): void;
   save(): void;
   restore(): void;
   translate(x: number, y: number): void;

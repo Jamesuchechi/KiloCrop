@@ -1,6 +1,9 @@
-import type { Dimensions, Rect, Spec } from './types';
+import type { Dimensions, FitMode, FitOptions, FitPlan, Rect, Spec } from './types';
 
 const MM_PER_INCH = 25.4;
+
+export const MAX_RESIZE_EDGE = 8000;
+export const MAX_SAFE_CANVAS_AREA = 16_000_000;
 
 /** Convert millimetres to whole pixels at the given DPI. */
 export function mmToPx(mm: number, dpi: number): number {
@@ -103,5 +106,99 @@ export function computePreviewScale(source: Dimensions, maxLongEdge = 1600): Dim
   return {
     width: Math.max(1, Math.round(source.width * scale)),
     height: Math.max(1, Math.round(source.height * scale)),
+  };
+}
+
+function sanitizeEdge(val: number | null): number | null {
+  if (val === null || !Number.isFinite(val) || val <= 0) return null;
+  return Math.max(1, Math.min(MAX_RESIZE_EDGE, Math.round(val)));
+}
+
+function clampUnitSigned(val: number | undefined): number {
+  if (val === undefined || !Number.isFinite(val)) return 0;
+  return Math.max(-1, Math.min(1, val));
+}
+
+/**
+ * Compute source crop rect, destination rect, and output pixel dimensions for
+ * inside / fill / pad / stretch modes, enforcing no-upscale and the 16 MP safe ceiling.
+ */
+export function computeFitPlan(source: Dimensions, options: FitOptions): FitPlan {
+  if (
+    !Number.isFinite(source.width) ||
+    !Number.isFinite(source.height) ||
+    source.width <= 0 ||
+    source.height <= 0
+  ) {
+    throw new RangeError('Source dimensions must be positive finite numbers');
+  }
+
+  const W = sanitizeEdge(options.targetWidth);
+  const H = sanitizeEdge(options.targetHeight);
+  const effectiveFit: FitMode = options.fit !== 'inside' && !(W && H) ? 'inside' : options.fit;
+
+  let sourceRect: Rect = { x: 0, y: 0, width: source.width, height: source.height };
+  let dw: number;
+  let dh: number;
+  let cropped = false;
+
+  if (effectiveFit === 'inside') {
+    let s = Math.min(W ? W / source.width : Infinity, H ? H / source.height : Infinity);
+    if (!Number.isFinite(s)) s = 1;
+    if (options.dontEnlarge) s = Math.min(s, 1);
+    dw = Math.max(1, Math.round(source.width * s));
+    dh = Math.max(1, Math.round(source.height * s));
+  } else if (effectiveFit === 'fill') {
+    const s = Math.max(W! / source.width, H! / source.height);
+    const sw = Math.min(source.width, W! / s);
+    const sh = Math.min(source.height, H! / s);
+    const maxX = Math.max(0, source.width - sw);
+    const maxY = Math.max(0, source.height - sh);
+    const fx = clampUnitSigned(options.focalX);
+    const fy = clampUnitSigned(options.focalY);
+    const sx = maxX * ((fx + 1) / 2);
+    const sy = maxY * ((fy + 1) / 2);
+    sourceRect = { x: sx, y: sy, width: sw, height: sh };
+    dw = W!;
+    dh = H!;
+    cropped = maxX > 0.5 || maxY > 0.5;
+  } else {
+    dw = W!;
+    dh = H!;
+  }
+
+  let wasClampedToSafeArea = false;
+  if (dw * dh > MAX_SAFE_CANVAS_AREA) {
+    const safeScale = Math.sqrt(MAX_SAFE_CANVAS_AREA / (dw * dh));
+    dw = Math.max(1, Math.floor(dw * safeScale));
+    dh = Math.max(1, Math.floor(dh * safeScale));
+    wasClampedToSafeArea = true;
+  }
+
+  let destRect: Rect;
+  if (effectiveFit === 'pad') {
+    let fgScale = Math.min(dw / source.width, dh / source.height);
+    if (options.dontEnlarge) {
+      fgScale = Math.min(fgScale, 1);
+    }
+    const fw = Math.max(1, Math.min(dw, Math.round(source.width * fgScale)));
+    const fh = Math.max(1, Math.min(dh, Math.round(source.height * fgScale)));
+    destRect = {
+      x: Math.floor((dw - fw) / 2),
+      y: Math.floor((dh - fh) / 2),
+      width: fw,
+      height: fh,
+    };
+  } else {
+    destRect = { x: 0, y: 0, width: dw, height: dh };
+  }
+
+  return {
+    sourceRect,
+    destRect,
+    outputDims: { width: dw, height: dh },
+    effectiveFit,
+    wasClampedToSafeArea,
+    cropped,
   };
 }

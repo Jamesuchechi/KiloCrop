@@ -1,13 +1,14 @@
 import { useState } from 'preact/hooks';
 
-import type { PipelineStats } from '../engine/types';
+import type { ResizeCompressStats } from '../engine/types';
+import { appHref } from './base-url';
 
 // Replace with a zero-login Tally/Google Form URL before wide consumer launch so non-devs can report stale limits without a GitHub account.
 const REPORT_LIMIT_URL =
   'https://github.com/Jamesuchechi/KiloCrop/issues/new?title=Wrong+portal+limit';
 
 export interface PipelineStatsDrawerProps {
-  stats: PipelineStats | null;
+  stats: ResizeCompressStats | null;
   engineMode: 'worker' | 'main-thread';
 }
 
@@ -39,7 +40,7 @@ export function PipelineStatsDrawer(props: PipelineStatsDrawerProps) {
         <span class="footer-sep" aria-hidden="true">
           ·
         </span>
-        <a class="btn-link" href="/guides/">
+        <a class="btn-link" href={appHref('/guides/')}>
           Portal guides
         </a>
       </div>
@@ -58,25 +59,38 @@ export function PipelineStatsDrawer(props: PipelineStatsDrawerProps) {
               <dd>{engineMode} (same-origin static files only)</dd>
               <dt>Timing</dt>
               <dd>
-                decode {stats.decodeMs} ms · encode {stats.encodeMs} ms · total {stats.totalMs} ms
+                scale {stats.decodeMs} ms · enhance {stats.enhanceMs} ms · encode {stats.encodeMs}{' '}
+                ms · total {stats.totalMs} ms
               </dd>
               <dt>Size reduction</dt>
               <dd>
-                {(stats.inputBytes / 1024).toFixed(0)} KB → {(stats.outputBytes / 1024).toFixed(1)}{' '}
-                KB ({stats.outputWidth}×{stats.outputHeight} px)
+                {(stats.inputBytes / 1024).toFixed(0)} KB ({stats.originalWidth}×
+                {stats.originalHeight}) → {(stats.outputBytes / 1024).toFixed(1)} KB (
+                {stats.outputWidth}×{stats.outputHeight} px)
               </dd>
-              <dt>JPEG search</dt>
+              <dt>Encoding</dt>
               <dd>
-                {stats.iterations} steps · q={stats.quality.toFixed(2)} · Baseline sRGB · EXIF
-                stripped
+                {stats.format.toUpperCase()} · {stats.iterations} steps · q=
+                {stats.quality.toFixed(2)} · EXIF stripped
               </dd>
+              <dt>Enhancement</dt>
+              <dd>
+                contrast {stats.contrastApplied ? 'enhanced' : 'unchanged'} · sharpen{' '}
+                {stats.sharpenApplied ? 'applied' : 'off'}
+              </dd>
+              {stats.fixedIssues.length > 0 && (
+                <>
+                  <dt>Auto-fixed</dt>
+                  <dd>{stats.fixedIssues.join(', ')}</dd>
+                </>
+              )}
               <dt>Network bytes sent</dt>
               <dd>{stats.outboundBytes} B</dd>
             </dl>
           ) : (
             <p class="muted m-0">
-              Engine mode: <code>{engineMode}</code> · Outbound bytes: <code>0 B</code>. Process a
-              photo to inspect decode/encode timings.
+              Engine mode: <code>{engineMode}</code> · Outbound bytes: <code>0 B</code>. Drop or
+              choose an image to inspect scale, enhance, and encode timings.
             </p>
           )}
         </div>

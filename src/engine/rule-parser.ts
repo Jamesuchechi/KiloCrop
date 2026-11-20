@@ -1,4 +1,4 @@
-import type { OutputFormat, Spec, Units } from './types';
+import type { FitMode, OutputFormat, Spec, Units } from './types';
 
 export type MatchedRuleField = 'dimensions' | 'minKb' | 'maxKb' | 'dpi' | 'format' | 'background';
 
@@ -7,6 +7,17 @@ export interface ParsedRuleResult {
   matchedFields: MatchedRuleField[];
   confidence: 'high' | 'medium' | 'low';
   warnings: string[];
+}
+
+export interface RecipeQueryState {
+  title: string | null;
+  width: number | null;
+  height: number | null;
+  fit: FitMode | null;
+  format: OutputFormat | null;
+  minKb: number | null;
+  maxKb: number | null;
+  dpi: number | null;
 }
 
 function toMmOrPx(value: number, unit: string | undefined): { value: number; units: Units } {
@@ -27,14 +38,17 @@ function sizeToKb(value: number, unit: string | undefined): number {
   return Math.round(value);
 }
 
-function sanitizeLabel(raw: string | null | undefined): string {
+export function sanitizeRuleLabel(
+  raw: string | null | undefined,
+  fallback = 'Shared Portal Rule',
+): string {
   const cleaned = (raw ?? '')
     .replace(/[<>"'`]/g, '')
     .replace(/[^\x20-\x7E]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 60);
-  return cleaned || 'Shared Portal Rule';
+  return cleaned || fallback;
 }
 
 function clampNum(value: number, min: number, max: number): number {
@@ -129,7 +143,6 @@ export function parsePortalRule(rawText: string): ParsedRuleResult {
     maxKb = sizeToKb(Number(rangeMatch[3]), u2);
     matchedFields.push('minKb', 'maxKb');
   } else {
-    // Consume negated comparators first so "not more than" never hits "more than"
     const negMaxRe =
       /(?:not\s+(?:more|greater|exceed(?:ing)?)\s+than|must\s+not\s+exceed)\s*(?:file\s*size\s*(?:of|is|:)?\s*)?(\d+(?:\.\d+)?)\s*(kb|kilobytes?|mb|megabytes?)\b/i;
     const negMax = sizeText.match(negMaxRe);
@@ -185,7 +198,14 @@ export function parsePortalRule(rawText: string): ParsedRuleResult {
   }
 
   // 4. Format
-  if (/\bpng\b/i.test(normalized) && !/\bjpe?g\b/i.test(normalized)) {
+  if (
+    /\bwebp\b/i.test(normalized) &&
+    !/\bjpe?g\b/i.test(normalized) &&
+    !/\bpng\b/i.test(normalized)
+  ) {
+    format = 'webp';
+    matchedFields.push('format');
+  } else if (/\bpng\b/i.test(normalized) && !/\bjpe?g\b/i.test(normalized)) {
     format = 'png';
     matchedFields.push('format');
   } else if (/\bjpe?g\b/i.test(normalized)) {
@@ -246,10 +266,100 @@ export function parsePortalRule(rawText: string): ParsedRuleResult {
   };
 }
 
+/** Parse optional `fit` query parameter into a valid FitMode. */
+export function parseQueryFit(search: string): FitMode | null {
+  const clean = search.startsWith('?') ? search.slice(1) : search;
+  if (!clean) return null;
+  const f = new URLSearchParams(clean).get('fit')?.toLowerCase();
+  if (f === 'inside' || f === 'fill' || f === 'pad' || f === 'stretch') {
+    return f;
+  }
+  return null;
+}
+
+/** Build a shareable plain-query recipe URL for custom or general presets (supports single-edge/KB rules). */
+export function buildRecipeQuery(opts: {
+  title?: string;
+  width: number | null;
+  height: number | null;
+  fit: FitMode;
+  format: OutputFormat;
+  minKb: number | null;
+  maxKb: number | null;
+  dpi: number | null;
+}): string {
+  const params = new URLSearchParams();
+  if (opts.title?.trim()) params.set('n', sanitizeRuleLabel(opts.title, 'Custom Recipe'));
+  if (opts.width && opts.width > 0) params.set('w', String(Math.min(8000, Math.round(opts.width))));
+  if (opts.height && opts.height > 0)
+    params.set('h', String(Math.min(8000, Math.round(opts.height))));
+  params.set('fit', opts.fit);
+  if (opts.dpi !== null && opts.dpi > 0) params.set('dpi', String(opts.dpi));
+  if (opts.minKb !== null && opts.minKb > 0) params.set('min', String(opts.minKb));
+  if (opts.maxKb !== null && opts.maxKb > 0) params.set('max', String(opts.maxKb));
+  if (opts.format !== 'jpeg') params.set('fmt', opts.format);
+  return `?${params.toString()}`;
+}
+
+/** Parse a flexible plain-query recipe link (including single-edge ?w=600 or KB-only links). */
+export function parseRecipeQuery(search: string): RecipeQueryState | null {
+  const clean = search.startsWith('?') ? search.slice(1) : search;
+  if (!clean) return null;
+  const params = new URLSearchParams(clean);
+  if (params.has('spec')) return null;
+
+  const parseDim = (key: string) => {
+    const raw = params.get(key);
+    if (raw === null || raw === '') return null;
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    return clampNum(Math.round(n), 1, 8000);
+  };
+
+  const width = parseDim('w');
+  const height = parseDim('h');
+  const fit = parseQueryFit(search);
+
+  const fmtParam = params.get('fmt')?.toLowerCase();
+  const format: OutputFormat | null =
+    fmtParam === 'webp'
+      ? 'webp'
+      : fmtParam === 'png'
+        ? 'png'
+        : fmtParam === 'jpeg' || fmtParam === 'jpg'
+          ? 'jpeg'
+          : null;
+
+  const parseKb = (key: string) => {
+    const raw = params.get(key);
+    if (raw === null || raw === '') return null;
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    return clampNum(Math.round(n), 1, 10240);
+  };
+
+  let minKb = parseKb('min');
+  const maxKb = parseKb('max');
+  if (minKb !== null && maxKb !== null && minKb > maxKb) minKb = null;
+
+  const dpiRaw = Number(params.get('dpi'));
+  const dpi =
+    params.get('dpi') && Number.isFinite(dpiRaw) && dpiRaw > 0
+      ? clampNum(Math.round(dpiRaw), 72, 600)
+      : null;
+
+  if (width === null && height === null && minKb === null && maxKb === null && !fit && !format) {
+    return null;
+  }
+
+  const title = params.has('n') ? sanitizeRuleLabel(params.get('n'), 'Shared Rule') : null;
+  return { title, width, height, fit, format, minKb, maxKb, dpi };
+}
+
 /** Serialize any Spec into a clean plain-query share URL (?n=&w=&h=&min=&max=&u=px|mm). */
 export function toQuerySpec(spec: Spec): string {
   const params = new URLSearchParams();
-  params.set('n', sanitizeLabel(spec.title));
+  params.set('n', sanitizeRuleLabel(spec.title));
   params.set('w', String(spec.output.width));
   params.set('h', String(spec.output.height));
   params.set('u', spec.output.units);
@@ -312,12 +422,12 @@ export function parseQuerySpec(search: string): Spec | null {
   }
 
   const fmtParam = (params.get('fmt') ?? 'jpeg').toLowerCase();
-  const format: OutputFormat = fmtParam === 'png' ? 'png' : 'jpeg';
+  const format: OutputFormat = fmtParam === 'webp' ? 'webp' : fmtParam === 'png' ? 'png' : 'jpeg';
 
   return {
     id: 'shared-query',
     schemaVersion: 1,
-    title: sanitizeLabel(params.get('n')),
+    title: sanitizeRuleLabel(params.get('n')),
     region: 'CUSTOM',
     status: 'draft',
     output: {

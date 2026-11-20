@@ -1,5 +1,12 @@
 import { clampCropRect, computePreviewScale, orientedDimensions } from './geometry';
-import type { BitmapLike, CanvasLike, Dimensions, EnginePlatform, Rect } from './types';
+import type {
+  BitmapLike,
+  CanvasContextLike,
+  CanvasLike,
+  Dimensions,
+  EnginePlatform,
+  Rect,
+} from './types';
 
 export const MAX_INPUT_BYTES = 50 * 1024 * 1024;
 export const MAX_SAFE_CANVAS_PIXELS = 16_000_000;
@@ -8,6 +15,11 @@ export const INTERMEDIATE_MAX_LONG_EDGE = 3200;
 
 export interface ExtractOptions {
   useCropAtDecode?: boolean;
+}
+
+function setHighQualitySmoothing(ctx: CanvasContextLike): void {
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
 }
 
 /** Safely close an ImageBitmap-compatible handle if present. */
@@ -67,6 +79,167 @@ export async function decodePreview(
 }
 
 /**
+ * Decode an oriented working bitmap capped by both long-edge and the 16 MP safe canvas area.
+ * Cached by the worker/client so slider tweaks stay instant without re-decoding 48 MP sources.
+ */
+export async function decodeWorkingBitmap(
+  blob: Blob,
+  orientedDims: Dimensions | null,
+  maxLongEdge: number,
+  platform: EnginePlatform,
+): Promise<BitmapLike> {
+  assertInputSafe(blob.size);
+  const clampedEdge = Math.max(256, Math.min(4000, Math.round(maxLongEdge)));
+
+  if (orientedDims && orientedDims.width > 0 && orientedDims.height > 0) {
+    let target = computePreviewScale(orientedDims, clampedEdge);
+    if (target.width * target.height > MAX_SAFE_CANVAS_PIXELS) {
+      const s = Math.sqrt(MAX_SAFE_CANVAS_PIXELS / (target.width * target.height));
+      target = {
+        width: Math.max(1, Math.floor(target.width * s)),
+        height: Math.max(1, Math.floor(target.height * s)),
+      };
+    }
+    return platform.createImageBitmap(blob, {
+      imageOrientation: 'from-image',
+      resizeWidth: target.width,
+      resizeHeight: target.height,
+    });
+  }
+
+  return platform.createImageBitmap(blob, {
+    imageOrientation: 'from-image',
+    resizeWidth: clampedEdge,
+  });
+}
+
+/**
+ * Progressive halving step-down onto an exact target size for crisp downscaling.
+ * Releases every intermediate canvas immediately; never releases caller's srcCanvas.
+ */
+export function scaleCanvasToDimensions(
+  srcCanvas: CanvasLike,
+  targetWidth: number,
+  targetHeight: number,
+  platform: EnginePlatform,
+): CanvasLike {
+  const dw = Math.max(1, Math.round(targetWidth));
+  const dh = Math.max(1, Math.round(targetHeight));
+  if (dw * dh > MAX_SAFE_CANVAS_PIXELS) {
+    throw new RangeError(`Requested output (${dw}×${dh}) exceeds the 16 MP safe canvas limit.`);
+  }
+
+  let cur: CanvasLike = srcCanvas;
+  let cw = srcCanvas.width;
+  let ch = srcCanvas.height;
+
+  try {
+    while (cw / 2 >= dw && ch / 2 >= dh) {
+      const nw = Math.max(dw, Math.round(cw / 2));
+      const nh = Math.max(dh, Math.round(ch / 2));
+      if (nw === cw && nh === ch) break;
+
+      const stepCanvas = platform.createCanvas(nw, nh);
+      const stepCtx = stepCanvas.getContext('2d');
+      if (!stepCtx) {
+        releaseCanvas(stepCanvas);
+        throw new Error('Could not acquire 2D canvas context.');
+      }
+      setHighQualitySmoothing(stepCtx);
+      stepCtx.drawImage(cur, 0, 0, cw, ch, 0, 0, nw, nh);
+
+      if (cur !== srcCanvas) {
+        releaseCanvas(cur);
+      }
+      cur = stepCanvas;
+      cw = nw;
+      ch = nh;
+    }
+
+    const outCanvas = platform.createCanvas(dw, dh);
+    const outCtx = outCanvas.getContext('2d');
+    if (!outCtx) {
+      releaseCanvas(outCanvas);
+      throw new Error('Could not acquire 2D canvas context.');
+    }
+    setHighQualitySmoothing(outCtx);
+    outCtx.drawImage(cur, 0, 0, cw, ch, 0, 0, dw, dh);
+    return outCanvas;
+  } finally {
+    if (cur !== srcCanvas) {
+      releaseCanvas(cur);
+    }
+  }
+}
+
+/**
+ * Crop sourceRect out of a BitmapLike and step-down scale cleanly to outputDims.
+ */
+export function scaleBitmapToCanvas(
+  bitmap: BitmapLike,
+  sourceRect: Rect,
+  outputDims: Dimensions,
+  platform: EnginePlatform,
+): CanvasLike {
+  const dw = Math.max(1, Math.round(outputDims.width));
+  const dh = Math.max(1, Math.round(outputDims.height));
+  if (dw * dh > MAX_SAFE_CANVAS_PIXELS) {
+    throw new RangeError(`Requested output (${dw}×${dh}) exceeds the 16 MP safe canvas limit.`);
+  }
+
+  const clamped = clampCropRect(sourceRect, { width: bitmap.width, height: bitmap.height });
+
+  // Direct draw when not shrinking by >= 2x in both axes
+  if (clamped.width / 2 < dw || clamped.height / 2 < dh) {
+    const out = platform.createCanvas(dw, dh);
+    const ctx = out.getContext('2d');
+    if (!ctx) {
+      releaseCanvas(out);
+      throw new Error('Could not acquire 2D canvas context.');
+    }
+    setHighQualitySmoothing(ctx);
+    ctx.drawImage(bitmap, clamped.x, clamped.y, clamped.width, clamped.height, 0, 0, dw, dh);
+    return out;
+  }
+
+  let cw = Math.max(1, Math.round(clamped.width));
+  let ch = Math.max(1, Math.round(clamped.height));
+  if (cw * ch > MAX_SAFE_CANVAS_PIXELS) {
+    const s = Math.sqrt(MAX_SAFE_CANVAS_PIXELS / (cw * ch));
+    cw = Math.max(1, Math.floor(cw * s));
+    ch = Math.max(1, Math.floor(ch * s));
+  }
+
+  let stage: CanvasLike | null = null;
+  try {
+    stage = platform.createCanvas(cw, ch);
+    const stageCtx = stage.getContext('2d');
+    if (!stageCtx) {
+      throw new Error('Could not acquire 2D canvas context.');
+    }
+    setHighQualitySmoothing(stageCtx);
+    stageCtx.drawImage(bitmap, clamped.x, clamped.y, clamped.width, clamped.height, 0, 0, cw, ch);
+    return scaleCanvasToDimensions(stage, dw, dh, platform);
+  } finally {
+    releaseCanvas(stage);
+  }
+}
+
+/** Composite any transparent pixels onto solid white before JPEG encoding. */
+export function flattenCanvasForJpeg(canvas: CanvasLike, platform: EnginePlatform): CanvasLike {
+  const flat = platform.createCanvas(canvas.width, canvas.height);
+  const ctx = flat.getContext('2d');
+  if (!ctx) {
+    releaseCanvas(flat);
+    throw new Error('Could not acquire 2D canvas context.');
+  }
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, canvas.width, canvas.height);
+  return flat;
+}
+
+/**
  * Extract the user's crop rectangle into an exact output-sized canvas.
  * Defaults to a capped intermediate decode (<= 3200 px long edge) unless
  * `useCropAtDecode` is enabled after real-device validation.
@@ -93,6 +266,7 @@ export async function extractCroppedCanvas(
     releaseCanvas(canvas);
     throw new Error('Could not acquire 2D canvas context.');
   }
+  setHighQualitySmoothing(ctx);
 
   let bmp: BitmapLike | null = null;
   try {

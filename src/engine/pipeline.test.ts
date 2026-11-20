@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { runExport, runInspect } from './pipeline';
+import { runExport, runInspect, runResizeCompress } from './pipeline';
 import { parsePortalRule } from './rule-parser';
 import type { BitmapLike, CanvasLike, EnginePlatform } from './types';
 
@@ -86,6 +86,41 @@ describe('pipeline', () => {
     expect(closeSpy).toHaveBeenCalledTimes(1);
     expect(createdCanvases[0]?.width).toBe(1);
     expect(createdCanvases[0]?.height).toBe(1);
+  });
+
+  it('runs resize + autoContrast + sharpen + WebP compression and releases all canvases', async () => {
+    const { platform, closeSpy, createdCanvases } = createPipelineTestPlatform();
+    const blob = new Blob([new Uint8Array(makeMinimalJpegBytes(32000))], { type: 'image/jpeg' });
+    const report = await runInspect(blob, 'IMG_01.jpg');
+
+    const { result, stats } = await runResizeCompress(
+      blob,
+      {
+        targetWidth: 600,
+        targetHeight: 600,
+        fit: 'fill',
+        dontEnlarge: true,
+        format: 'webp',
+        quality: 0.82,
+        minKb: null,
+        maxKb: 25,
+        dpi: null,
+        autoContrast: true,
+        sharpenPct: 35,
+      },
+      report,
+      platform,
+    );
+
+    expect(result.width).toBe(600);
+    expect(result.height).toBe(600);
+    expect(result.bytes).toBeLessThanOrEqual(25 * 1024);
+    expect(stats.outboundBytes).toBe(0);
+    expect(closeSpy).toHaveBeenCalledTimes(1);
+    for (const c of createdCanvases) {
+      expect(c.width).toBe(1);
+      expect(c.height).toBe(1);
+    }
   });
 
   it('aborts cleanly when AbortSignal is already aborted', async () => {

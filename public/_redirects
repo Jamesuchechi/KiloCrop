@@ -1,0 +1,7 @@
+/print /index.html 200
+/inspect /index.html 200
+/batch /index.html 200
+/compare /index.html 200
+/documents /index.html 200
+/presets /index.html 200
+/web-kit /index.html 200

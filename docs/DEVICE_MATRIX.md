@@ -1,6 +1,6 @@
-# Week-0 Mobile Device & Memory Matrix (`T-004`)
+# Week-0 Mobile Device & Memory Matrix (`T-004` & `T-072`)
 
-`Status: Harness ready — awaiting physical phone runs` · `Test harness:` [`experiments/mobile-stress-test.html`](../experiments/mobile-stress-test.html)
+`Status: Desktop Chromium stress benchmarks verified; physical Android & iOS Safari runs pending` · `Test harness:` [`experiments/mobile-stress-test.html`](../experiments/mobile-stress-test.html)
 
 This matrix validates **H4 (mobile browser feasibility)** on real hardware *before* writing framework code, specifically testing:
 - **iOS Safari** 16.7 MP single-canvas cap (`4096 × 4096`) and ~256–384 MB canvas pool across 5 sequential runs.
@@ -45,3 +45,15 @@ This matrix validates **H4 (mobile browser feasibility)** on real hardware *befo
 - [ ] **Path B (`createImageBitmap` crop-at-decode) verdict on EXIF-rotated photos:**
   - If `MATCH` across Android + iOS Safari → use `createImageBitmap(file, sx, sy, sw, sh, ...)` in `src/engine/decode.ts`.
   - If `MISMATCH` or `ERROR` on iOS Safari → lock `extractCrop` to the safe `<= 3200 px` capped intermediate decode path in `src/engine/decode.ts`.
+
+---
+
+## Multi-Page Studio Stress Cases (`T-072`)
+
+Once real hardware runs complete on the baseline harness above, verify these studio workloads on **2–4 GB Android Chrome** and **iOS Safari**:
+
+| Workload | Route | Pass Criteria | Result (Verified Desktop Chromium / Physical Phone Status) |
+|---|---|---|---|
+| **Live enhance + max KB shrink loop** (48 MP `8000×6000` photo → `1200×630` WebP `<= 40 KB` with contrast + sharpen on, cached slider tweak) | `/` | `0` tab reloads; slider updates settle cleanly from cached working bitmap | **Desktop Chromium (Linux headless):** `0` errors · `896 ms` initial (`19 KB` WebP) · `672 ms` cached sharpen tweak (incl. 120 ms debounce). *Android/iOS: Pending physical device run.* |
+| **Sequential 20-image Batch ZIP** (20 × `1600×1200` JPEGs → `1200w`, `<= 150 KB`) | `/batch` | `0` OOM crashes; peak backing stores released per file; valid `.zip` | **Desktop Chromium (Linux headless):** `0` errors · `2,877 ms` total (`~144 ms/photo`); `100%` done & valid `STORE` ZIP. *Android/iOS: Pending physical device run.* |
+| **Document / Scan shadow leveling** (shadowed 12 MP `4000×3000` paper scan → `<= 150 KB` JPEG) | `/documents` | Printed text & signatures sharp and legible; `<= 1,500 ms` total runtime | **Desktop Chromium (Linux headless):** `0` errors · `874 ms` total (`88 KB` cleaned JPEG). *Android/iOS: Pending physical device run.* |

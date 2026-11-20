@@ -1,52 +1,50 @@
-# KiloCrop v0.1 Launch & Deployment Kit (`T-033` / `T-034`)
+# KiloCrop Launch & Deployment Kit (`T-074`)
 
-## 1. Pre-Launch Checklist (`T-033`)
+## 1. Pre-Launch Checklist
 
-1. **Finish real-device verification:** Run `experiments/mobile-stress-test.html` + the deployed preview URL on at least one **2–4 GB Android phone** and **iPhone (Safari)**, and record timings/notes in [`docs/DEVICE_MATRIX.md`](DEVICE_MATRIX.md).
-2. **Swap `REPORT_LIMIT_URL` (optional, recommended before consumer share):** In [`src/ui/pipeline-stats-drawer.tsx`](../src/ui/pipeline-stats-drawer.tsx), replace `REPORT_LIMIT_URL` with a zero-login Tally/Google Form URL so non-technical applicants do not hit a GitHub sign-in wall when reporting a changed portal limit.
-3. **Update `README.md`:** Add 2 mobile screenshots (Crop Editor + `"Fixed N hidden issues"` Result screen) and paste real Android/iOS timings from `docs/DEVICE_MATRIX.md`.
+1. **Finish real-device verification:** Run `experiments/mobile-stress-test.html` plus single-photo enhance, `/documents` leveling, and a 20-image `/batch` ZIP export on at least one **2–4 GB Android phone** and **iPhone (Safari)**; record timings and notes in [`docs/DEVICE_MATRIX.md`](DEVICE_MATRIX.md).
+2. **Swap `REPORT_LIMIT_URL` (optional before broad launch):** In [`src/ui/pipeline-stats-drawer.tsx`](../src/ui/pipeline-stats-drawer.tsx), replace `REPORT_LIMIT_URL` with a zero-login form URL if non-developer portal reporting grows.
+3. **Update `README.md`:** Add real desktop (Royal Blue/White/Dark Gray) and mobile screenshots once multi-page routes ship, and fill in real Android/iOS timings from [`docs/DEVICE_MATRIX.md`](DEVICE_MATRIX.md).
 4. **Deploy to Cloudflare Pages:**
    - Connect `Jamesuchechi/KiloCrop` (`main` branch).
    - **Build command:** `pnpm build`
    - **Build output directory:** `dist`
    - **Environment variable:** `NODE_VERSION=22`
-   - Verify live headers (`curl -sI https://<site>/ | grep -i content-security-policy`) serve `public/_headers` intact.
-   - Enable **Cloudflare Web Analytics / HTTP edge metrics** in the Cloudflare dashboard (script-free server-side counts only—do NOT inject any JS snippet so `script-src 'self'` and `connect-src 'self'` stay unbroken).
-5. **Tag release:** `git tag v0.1.0 && git push origin v0.1.0`.
+   - Verify live headers (`curl -sI https://<site>/ | grep -i content-security-policy`) serve `public/_headers` intact and SPA routes (`/batch`, `/compare`, `/documents`, `/inspect`, `/print`, `/presets`, `/web-kit`) fall back cleanly while `/guides/*` serves static HTML.
+   - Enable **Cloudflare script-free HTTP edge metrics** in the dashboard only (zero JS snippets injected so `script-src 'self'` and `connect-src 'self'` stay unbroken).
+5. **Tag release:** `git tag v1.0.0 && git push origin v1.0.0`.
 
 ---
 
-## 2. 35-Second Phone Screen Demo Storyboard (`T-034`)
+## 2. 35-Second Phone Screen Demo Storyboard
 
-Record vertically on a real phone (30–35 seconds total, no talking needed—captions only):
-1. **0–6 s (The hook):** Open KiloCrop → tap **Paste rule / Custom** → paste `"UNILORIN: 600x600px, max 25KB"`.
-2. **6–12 s (Offline proof):** Turn **Airplane Mode ON** in quick settings before tapping **Choose photo**.
-3. **12–20 s (Crop & X-Ray):** Pick a sideways 4 MB phone photo → pinch/drag inside head-zone guide → tap **Fit & Save Photo**.
-4. **20–27 s (Payoff):** Pause 2 seconds on **`Fixed 3 hidden issues` (sideways rotation + `.jpeg` extension + EXIF/GPS stripped) · 23.4 KB** + tap **Share this portal link**.
-5. **27–35 s (4×6 sheet bonus):** Tap **Make 4×6 Print Sheet** → show **8 photos packed on one 4×6 in (300 DPI PNG)**.
+Record vertically on a real phone (30–35 seconds total, captions only):
+1. **0–6 s (Drop or paste):** Open KiloCrop in Royal Blue / Dark Gray → flip **Airplane Mode ON** → drop or pick a 4 MB camera photo.
+2. **6–14 s (Sharper + smaller live):** Pick **Link preview (OG)** or **NYSC (`<= 15 KB`)** → toggle **Fix dull contrast** + **Sharpen**, drag the preview frame to adjust crop, toggle **Preview in context** (safe zones), and hold **Original vs Result**.
+3. **14–22 s (Power pages):** Tap **`/batch`** to drop 8 product shots and download one offline `.zip` — or tap **`/documents`** to level a shadowed certificate scan under 150 KB.
+4. **22–30 s (Inspect & Print bonus):** Tap **`/inspect`** (or footer **Pipeline stats**) showing EXIF/GPS stripped and `0 B` outbound → flip to **`/print`** showing 8 photos packed on one 300 DPI `4×6` sheet.
 
 ---
 
-## 3. Consumer Launch Copy (Nigerian X / LinkedIn / Student WhatsApp)
+## 3. Consumer Launch Copy (X / LinkedIn / WhatsApp)
 
-> Portals kept rejecting my passport photo for being "over 25 KB" or "invalid image"—and paid passport apps slap watermarks at download.
+> Tired of online image resizers that blur your photos, slap rate limits, or upload every file to a random server?
 >
-> So I built **KiloCrop**: free, no watermark, works offline on your phone, and **your photo never leaves your device**.
+> **KiloCrop** is a free, open-source browser image studio that resizes, enhances, and compresses photos to fit anywhere — **offline**, with **zero uploads**:
 >
-> - Paste ANY portal's error text (`"600x600px, max 25KB"`) and it sets everything automatically
-> - Fixes hidden portal traps (sideways EXIF, progressive JPEGs, `.jpeg` vs `.jpg`, non-sRGB color)
-> - Hits min & max KB limits (NYSC `7–15 KB`, WAEC GCE `5–30 KB`, UNILORIN `≤ 25 KB`, NIS `600×800`)
-> - Packs **8 photos on one 4×6 print sheet** (plus Multi-photo mode for cyber cafés!)
-> - One tap copies a shareable WhatsApp group link (`?n=UNILORIN&w=600&h=600&max=25`)
+> - **Look sharper after shrinking:** progressive step-down scaling, auto-contrast & edge sharpening (zero watermarks)
+> - **Hit exact pixels or max KB:** presets for Instagram, YouTube, LinkedIn banners, OG cards, blogs, email, plus Nigerian & global visa/exam portals (`25 KB`, `7–15 KB`, `300 DPI`)
+> - **Preview in context** (avatar overlap, YouTube timestamp pill, Story safe zones) & **Pad with matching blurred backdrop** when cropping won't fit
+> - Multi-page toolkit: **Batch ZIP** (`/batch`), **Format Lab** (`/compare`), **Document/Scan Squeezer** (`/documents`), **Metadata X-Ray** (`/inspect`), **4×6 Print Sheets** (`/print`), **Presets Directory** (`/presets`), and **Responsive `<picture>` Web Kit** (`/web-kit`)
 >
-> Try it free: `<URL>` (Open source on GitHub: `https://github.com/Jamesuchechi/KiloCrop`)
+> Try it free: `<URL>` · MIT open source: `https://github.com/Jamesuchechi/KiloCrop`
 
 ---
 
 ## 4. Engineering Launch Outline (Show HN / r/webdev / Dev X)
 
-- **Title:** `Show HN: KiloCrop – Browser-only portal photo fitter (~25 KB bundle, 0 outbound bytes, beats iOS Safari 16.7 MP crash)`
-- **Key points to cover:**
-  1. Why naive browser resizers crash on iPhones (`16.7 MP` single-canvas cap + `256–384 MB` tab backing pool) and 2 GB Androids, and how capped `createImageBitmap` + immediate `bitmap.close()` / `canvas.width = 1` keeps 5× sequential runs crash-free (`[insert real ms/device numbers from docs/DEVICE_MATRIX.md]`).
-  2. Writing a zero-dependency `DataView` binary X-Ray (`src/engine/inspect.ts`) to diagnose `SOF2` progressive JPEGs, TIFF EXIF orientations, Display-P3 ICC profiles, `ftypheic`, and JFIF/PNG `pHYs` 300 DPI injection + `COM` segment min-KB padding.
-  3. Verifiable no-upload architecture: strict CSP (`script-src 'self'`, `connect-src 'self'`), Playwright CI route guard + `securitypolicyviolation` listener + real offline Service Worker e2e tests, and a DOM-free `src/engine/` ready to extract into a drop-in `<kilocrop-input>` Web Component.
+- **Title:** `Show HN: KiloCrop – Multi-page offline browser image studio (~35 KB initial / ~61 KB all routes gzip, 0 outbound bytes, Web Worker + pure-TS ZIP, DPI & scan cleaner)`
+- **Key technical talking points:**
+  1. **Mobile-first canvas memory budget:** Why naive resizers crash iOS Safari (`16.7 MP` canvas limit, `256–384 MB` pool) and 2–4 GB Androids, and how cached working-bitmap reuse + 0.5× step-halving + immediate `releaseCanvas()` (`width = height = 1`) + 1-at-a-time `/batch` queueing handle 48 MP (`896 ms` on desktop Chromium; `2.88 s` for 20-image batch) safely (`[add real phone ms from docs/DEVICE_MATRIX.md once run]`).
+  2. **Pure DOM-free `src/engine/` (`eslint-plugin-boundaries` enforced):** Binary `DataView` header X-Ray (`inspect.ts`), alpha-safe Rec.709 auto-contrast & Laplacian sharpening (`enhance.ts`), `0.9×` adaptive shrink loop + JFIF/PNG `pHYs` DPI writer + JPEG `COM` min-KB padding, pure-TS `STORE` ZIP writer (`zip.ts`), 64×64 salience auto-focus (`salience.ts`), local document illumination leveling (`document.ts`), and responsive Web Kit / LQIP export (`web-kit.ts`) — `0 KB` ML/WASM downloads.
+  3. **Verifiable zero-upload isolation:** Strict `style-src 'self'`, `script-src 'self'`, `connect-src 'self'` CSP, `70` Vitest unit/property tests + `11` Playwright route/CSP/offline/OS-launch tests, and a clean Royal Blue / White / Dark Gray UI with zero inline styles or external fonts.

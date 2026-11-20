@@ -4,9 +4,17 @@ import { join } from 'node:path';
 import type { Spec } from '../src/engine/types.ts';
 import { PORTAL_GUIDES, type PortalGuide } from './guides-data.ts';
 
+function normalizeBasePath(raw?: string): string {
+  const trimmed = (raw ?? '/').trim();
+  if (!trimmed || trimmed === '/') return '/';
+  const withLead = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  return withLead.endsWith('/') ? withLead : `${withLead}/`;
+}
+
 const DIST_DIR = join(process.cwd(), 'dist');
 const BUNDLE_PATH = join(process.cwd(), 'specs', 'bundle.json');
 const SITE_URL = (process.env.SITE_URL ?? 'https://kilocrop.app').replace(/\/+$/, '');
+const BASE = normalizeBasePath(process.env.BASE_PATH);
 
 function esc(raw: string): string {
   return raw
@@ -46,21 +54,21 @@ function renderGuidePage(guide: PortalGuide, spec: Spec): string {
       content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'"
     />
     <meta name="description" content="${esc(guide.summary)}" />
-    <link rel="stylesheet" href="/guides.css" />
-    <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="${BASE}guides.css" />
+    <link rel="icon" href="${BASE}icons/icon.svg" type="image/svg+xml" />
     <title>${esc(guide.headline)} — KiloCrop</title>
   </head>
   <body>
     <main>
       <nav class="crumbs" aria-label="Breadcrumb">
-        <a href="/">KiloCrop App</a> / <a href="/guides/">Portal Guides</a> / ${esc(spec.shortLabel ?? spec.title)}
+        <a href="${BASE}">KiloCrop App</a> / <a href="${BASE}guides/">Portal Guides</a> / ${esc(spec.shortLabel ?? spec.title)}
       </nav>
 
       <h1>${esc(guide.headline)}</h1>
       <p class="lead">${esc(guide.summary)}</p>
 
       <div class="card">
-        <a class="cta" href="/?spec=${encodeURIComponent(spec.id)}">Open in KiloCrop →</a>
+        <a class="cta" href="${BASE}?spec=${encodeURIComponent(spec.id)}">Open in KiloCrop →</a>
       </div>
 
       <section class="card">
@@ -103,7 +111,7 @@ function renderGuidePage(guide: PortalGuide, spec: Spec): string {
 
       <footer>
         Runs 100% offline in your browser — your photo never leaves your device.
-        <a href="/">Launch KiloCrop</a> · <a href="/guides/">All Portal Guides</a>
+        <a href="${BASE}">Launch KiloCrop</a> · <a href="${BASE}guides/">All Portal Guides</a>
       </footer>
     </main>
   </body>
@@ -118,7 +126,7 @@ function renderDirectoryPage(guides: readonly PortalGuide[], specMap: Map<string
       const sub = s
         ? `${s.output.width}×${s.output.height} ${s.output.units} · ${formatSizeRule(s)}`
         : '';
-      return `<li><a href="/guides/${encodeURIComponent(g.slug)}/"><strong>${esc(g.headline)}</strong><span>${esc(sub)}</span></a></li>`;
+      return `<li><a href="${BASE}guides/${encodeURIComponent(g.slug)}/"><strong>${esc(g.headline)}</strong><span>${esc(sub)}</span></a></li>`;
     })
     .join('\n        ');
 
@@ -132,13 +140,13 @@ function renderDirectoryPage(guides: readonly PortalGuide[], specMap: Map<string
       content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'"
     />
     <meta name="description" content="Verified passport and portal photo requirement guides for Nigeria and major visa portals." />
-    <link rel="stylesheet" href="/guides.css" />
-    <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="${BASE}guides.css" />
+    <link rel="icon" href="${BASE}icons/icon.svg" type="image/svg+xml" />
     <title>Portal Photo Guides — KiloCrop</title>
   </head>
   <body>
     <main>
-      <nav class="crumbs"><a href="/">← Open KiloCrop App</a></nav>
+      <nav class="crumbs"><a href="${BASE}">← Open KiloCrop App</a></nav>
       <h1>Portal Photo Guides</h1>
       <p class="lead">Exact pixel, KB, and background rules for verified Nigerian and visa portals. Every guide opens straight into KiloCrop offline.</p>
       <ul class="guide-list">

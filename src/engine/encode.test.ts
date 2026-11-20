@@ -1,12 +1,13 @@
 import fc from 'fast-check';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { readJpegDpi } from './dpi';
-import { encodeToSizeWindow } from './encode';
+import { encodeAdaptiveCanvas, encodeToSizeWindow } from './encode';
+import type { CanvasLike, EnginePlatform } from './types';
 
-function makeSizedJpeg(totalLen: number, withApp0 = false): Uint8Array {
+function makeSizedJpeg(totalLen: number, withApp0 = false): Uint8Array<ArrayBuffer> {
   const len = Math.max(24, Math.round(totalLen));
-  const out = new Uint8Array(len);
+  const out = new Uint8Array(new ArrayBuffer(len));
   out[0] = 0xff;
   out[1] = 0xd8;
   let pos = 2;
@@ -117,5 +118,114 @@ describe('encodeToSizeWindow', () => {
       ),
       { numRuns: 40 },
     );
+  });
+});
+
+describe('encodeAdaptiveCanvas', () => {
+  it('shrinks pixel dimensions 0.9x per step until PNG/large canvas fits maxKb and releases intermediates', async () => {
+    const created: CanvasLike[] = [];
+    const makeCanvas = (width: number, height: number): CanvasLike => {
+      const c: CanvasLike = {
+        width,
+        height,
+        getContext: () => ({
+          fillStyle: '#fff',
+          strokeStyle: '#000',
+          lineWidth: 1,
+          font: '12px sans-serif',
+          textAlign: 'center',
+          fillRect: vi.fn(),
+          drawImage: vi.fn(),
+          save: vi.fn(),
+          restore: vi.fn(),
+          translate: vi.fn(),
+          rotate: vi.fn(),
+          beginPath: vi.fn(),
+          moveTo: vi.fn(),
+          lineTo: vi.fn(),
+          stroke: vi.fn(),
+          fillText: vi.fn(),
+        }),
+        async convertToBlob(opts) {
+          // Byte size proportional to pixel count so 0.9x shrinking brings it under maxKb
+          const areaBytes = Math.max(1200, Math.round((c.width * c.height) / 10));
+          return new Blob([makeSizedJpeg(areaBytes, true)], { type: opts?.type ?? 'image/png' });
+        },
+      };
+      created.push(c);
+      return c;
+    };
+
+    const platform: EnginePlatform = {
+      createImageBitmap: vi.fn(),
+      createCanvas: makeCanvas,
+    };
+
+    const initial = makeCanvas(800, 800); // ~64 KB at 0.1 bytes/px -> shrink to fit <= 40 KB
+    const res = await encodeAdaptiveCanvas(
+      initial,
+      { format: 'png', quality: 0.82, minKb: null, maxKb: 40, dpi: null },
+      platform,
+    );
+
+    expect(res.shrunkToFitKb).toBe(true);
+    expect(res.bytes).toBeLessThanOrEqual(40 * 1024);
+    expect(res.width).toBeLessThan(800);
+    // Initial canvas must remain untouched for caller cleanup; internal intermediates are released (1x1)
+    expect(initial.width).toBe(800);
+    for (const c of created.slice(1)) {
+      expect(c.width).toBe(1);
+      expect(c.height).toBe(1);
+    }
+  });
+
+  it('detects browser format fallback from WebP to PNG and flattens transparent inputs only for JPEG', async () => {
+    const fillRectSpy = vi.fn();
+    const makeCanvas = (width: number, height: number): CanvasLike => ({
+      width,
+      height,
+      getContext: () => ({
+        fillStyle: '#fff',
+        strokeStyle: '#000',
+        lineWidth: 1,
+        font: '12px sans-serif',
+        textAlign: 'center',
+        fillRect: fillRectSpy,
+        drawImage: vi.fn(),
+        save: vi.fn(),
+        restore: vi.fn(),
+        translate: vi.fn(),
+        rotate: vi.fn(),
+        beginPath: vi.fn(),
+        moveTo: vi.fn(),
+        lineTo: vi.fn(),
+        stroke: vi.fn(),
+        fillText: vi.fn(),
+      }),
+      async convertToBlob() {
+        return new Blob([new Uint8Array([1, 2, 3, 4])], { type: 'image/png' });
+      },
+    });
+    const platform: EnginePlatform = {
+      createImageBitmap: vi.fn(),
+      createCanvas: makeCanvas,
+    };
+
+    const src = makeCanvas(400, 400);
+    const webpAttempt = await encodeAdaptiveCanvas(
+      src,
+      { format: 'webp', quality: 0.8, minKb: null, maxKb: null, dpi: null },
+      platform,
+    );
+    expect(webpAttempt.requestedFormat).toBe('webp');
+    expect(webpAttempt.actualFormat).toBe('png');
+    expect(fillRectSpy).not.toHaveBeenCalled();
+
+    await encodeAdaptiveCanvas(
+      src,
+      { format: 'jpeg', quality: 0.8, minKb: null, maxKb: null, dpi: null },
+      platform,
+    );
+    expect(fillRectSpy).toHaveBeenCalledTimes(1);
   });
 });

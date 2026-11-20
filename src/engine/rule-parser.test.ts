@@ -1,7 +1,14 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import { parsePortalRule, parseQuerySpec, toQuerySpec } from './rule-parser';
+import {
+  buildRecipeQuery,
+  parsePortalRule,
+  parseQueryFit,
+  parseQuerySpec,
+  parseRecipeQuery,
+  toQuerySpec,
+} from './rule-parser';
 
 interface CorpusCase {
   input: string;
@@ -308,6 +315,33 @@ describe('rule-parser', () => {
     expect(parseQuerySpec('')).toBeNull();
     expect(parseQuerySpec('?n=Test&w=0&h=300')).toBeNull();
     expect(parseQuerySpec('?n=Test&w=abc&h=300')).toBeNull();
+  });
+
+  it('supports webp rules and single-edge/pad recipe query links safely', () => {
+    const webpParsed = parsePortalRule('Cover photo 1200x630px under 90KB WebP');
+    expect(webpParsed.spec.output.format).toBe('webp');
+    expect(webpParsed.spec.output.fileSizeKb.max).toBe(90);
+
+    const q = buildRecipeQuery({
+      title: 'Email Header <script>',
+      width: 600,
+      height: null,
+      fit: 'pad',
+      format: 'webp',
+      minKb: null,
+      maxKb: 80,
+      dpi: null,
+    });
+    expect(parseQueryFit(q)).toBe('pad');
+    const rec = parseRecipeQuery(q);
+    expect(rec).toMatchObject({
+      title: 'Email Header script',
+      width: 600,
+      height: null,
+      fit: 'pad',
+      format: 'webp',
+      maxKb: 80,
+    });
   });
 
   it('property: toQuerySpec -> parseQuerySpec preserves clamped bounds cleanly', () => {

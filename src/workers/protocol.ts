@@ -1,13 +1,21 @@
 import type { PrintSheetInput } from '../engine/print-sheet';
 import type {
   BitmapLike,
+  DocumentCleanOptions,
+  DocumentCleanResult,
   EncodeResult,
   InspectReport,
   PipelineStats,
   PrintSheetLayout,
   PrintSheetResult,
   Rect,
+  ResizeCompressOptions,
+  ResizeCompressResult,
+  ResizeCompressStats,
   Spec,
+  WebKitAsset,
+  WebKitOptions,
+  WebKitResult,
 } from '../engine/types';
 
 export type WorkerRequest =
@@ -34,12 +42,40 @@ export type WorkerRequest =
     }
   | {
       id: number;
+      type: 'resize-compress';
+      sourceKey: string;
+      blob: Blob;
+      options: ResizeCompressOptions;
+      report: InspectReport;
+    }
+  | {
+      id: number;
+      type: 'clear-source';
+    }
+  | {
+      id: number;
       type: 'print-sheet';
       layout: PrintSheetLayout;
       inputs: PrintSheetInput[];
       mode: 'single' | 'multi';
       copies?: number;
       cutMarks?: boolean;
+    }
+  | {
+      id: number;
+      type: 'document-clean';
+      sourceKey: string;
+      blob: Blob;
+      options: DocumentCleanOptions;
+      report: InspectReport;
+    }
+  | {
+      id: number;
+      type: 'web-kit';
+      sourceKey: string;
+      blob: Blob;
+      options: WebKitOptions;
+      report: InspectReport;
     }
   | {
       id: number;
@@ -71,9 +107,34 @@ export type WorkerResponse =
   | {
       id: number;
       ok: true;
+      type: 'resize-compress';
+      buffer: ArrayBuffer;
+      mime: string;
+      resultMeta: Omit<ResizeCompressResult, 'blob'>;
+      stats: ResizeCompressStats;
+    }
+  | {
+      id: number;
+      ok: true;
       type: 'print-sheet';
       buffer: ArrayBuffer;
       resultMeta: Omit<PrintSheetResult, 'blob'>;
+    }
+  | {
+      id: number;
+      ok: true;
+      type: 'document-clean';
+      buffer: ArrayBuffer;
+      mime: string;
+      resultMeta: Omit<DocumentCleanResult, 'blob'>;
+    }
+  | {
+      id: number;
+      ok: true;
+      type: 'web-kit';
+      assetsMeta: Array<Omit<WebKitAsset, 'blob'>>;
+      buffers: ArrayBuffer[];
+      resultMeta: Omit<WebKitResult, 'assets'>;
     }
   | {
       id: number;
@@ -93,6 +154,14 @@ export interface EngineClient {
     report: InspectReport,
     options?: { signal?: AbortSignal; useCropAtDecode?: boolean },
   ): Promise<{ result: EncodeResult; stats: PipelineStats }>;
+  resizeCompress(
+    sourceKey: string,
+    blob: Blob,
+    options: ResizeCompressOptions,
+    report: InspectReport,
+    signal?: AbortSignal,
+  ): Promise<{ result: ResizeCompressResult; stats: ResizeCompressStats }>;
+  clearSource(): void;
   printSheet(
     layout: PrintSheetLayout,
     inputs: PrintSheetInput[],
@@ -103,5 +172,19 @@ export interface EngineClient {
       signal?: AbortSignal;
     },
   ): Promise<PrintSheetResult>;
+  documentClean(
+    sourceKey: string,
+    blob: Blob,
+    options: DocumentCleanOptions,
+    report: InspectReport,
+    signal?: AbortSignal,
+  ): Promise<DocumentCleanResult>;
+  webKitExport(
+    sourceKey: string,
+    blob: Blob,
+    options: WebKitOptions,
+    report: InspectReport,
+    signal?: AbortSignal,
+  ): Promise<WebKitResult>;
   dispose(): void;
 }

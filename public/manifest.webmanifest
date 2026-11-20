@@ -1,11 +1,13 @@
 {
+  "id": "/",
+  "scope": "/",
   "name": "KiloCrop",
   "short_name": "KiloCrop",
-  "description": "Crop and compress passport & form photos to exact portal KB and pixel limits offline.",
+  "description": "Resize, sharpen, and compress images to exact pixel or KB limits offline in your browser.",
   "start_url": "/",
   "display": "standalone",
-  "theme_color": "#0f172a",
-  "background_color": "#f8fafc",
+  "theme_color": "#1d4ed8",
+  "background_color": "#f3f4f6",
   "icons": [
     {
       "src": "/icons/icon.svg",
@@ -22,5 +24,28 @@
       "sizes": "512x512",
       "type": "image/png"
     }
-  ]
+  ],
+  "file_handlers": [
+    {
+      "action": "/?launch=file",
+      "accept": {
+        "image/jpeg": [".jpg", ".jpeg"],
+        "image/png": [".png"],
+        "image/webp": [".webp"]
+      }
+    }
+  ],
+  "share_target": {
+    "action": "/?share-target=1",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "files": [
+        {
+          "name": "image",
+          "accept": ["image/jpeg", "image/png", "image/webp"]
+        }
+      ]
+    }
+  }
 }

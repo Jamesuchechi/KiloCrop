@@ -1,156 +1,128 @@
 # KiloCrop
 
-> Crop, fit, and compress photos to exact portal KB & pixel rules — right in your browser.
+> Resize, enhance, and compress images so they look sharper and fit anywhere they are placed — right in your browser.
 > Free, no watermark, works offline, and **your photo never leaves your device**.
 
-`Status: pre-alpha (v0.1 sprint)` · `License: MIT (code) / CC0-1.0 (specs)` · `Hosting: static files only`
+`Status: Multi-page browser image studio built (Phases 1–3); ready for real-device stress & Cloudflare Pages deploy` · `License: MIT (code) / CC0-1.0 (specs)` · `Hosting: static files only`
 
-See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the technical design and [`TODO.md`](TODO.md) for the 3-week v0.1 MVP plan.
+See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the technical architecture and [`TODO.md`](TODO.md) for the multi-page roadmap and task tracker.
 
 ---
 
 ## Why KiloCrop exists
 
-Online forms and portals routinely reject valid photos for rigid, poorly explained file rules:
+Getting an image to fit a website, social platform, email, document, or strict upload portal usually forces bad tradeoffs:
 
-- **Strict KB windows:** Post-UTME, NYSC, WAEC GCE, and scholarship portals frequently demand 25–100 KB JPEGs (and sometimes reject files that are *too small*). Phone cameras output 3–8 MB.
-- **Paywalled passport apps:** Global photo sites charge US$9–$14+ at download or add watermarks.
-- **WhatsApp-crushed photos:** Sending a passport photo over normal WhatsApp recompresses and resizes it, breaking portal dimension checks.
-- **Single-photo print markups:** Cyber cafés and studios often charge per cut instead of tiling 6–8 photos onto one cheap 4×6 print sheet.
-
-**Scope honesty on Nigerian documents:** KiloCrop targets portals that actually accept digital photo uploads (such as NIS online passport uploads, NYSC mobilization, WAEC GCE private registration, university Post-UTME portals, jobs/scholarships, and US/UK visas). **NIN (NIMC), FRSC Driver's Licence, JAMB UTME, and school WAEC/NECO are explicitly excluded** because those agencies capture photos live on-site via biometric hardware rather than user uploads.
+- **Bloated downloads & paywalls:** Online compressors inject trackers, enforce tiny daily quotas, or paywall passport/batch exports.
+- **Mushy downscaled images:** Naive one-shot browser resizers soften details and wash out low-contrast photos when shrinking large phone photos.
+- **Opaque size vs. pixel tradeoffs:** Forms and portals demand exact pixel ratios or hard KB caps (25–100 KB, or min–max windows like 7–15 KB) while silently rejecting progressive JPEGs, sideways EXIF rotation, or Display-P3/CMYK profiles.
+- **Single-purpose toys:** Everyday users shouldn't need five separate apps to resize an OG banner, squeeze a scanned WAEC/NYSC certificate, strip GPS metadata, batch-compress 20 product photos, or tile a 4×6 print sheet.
 
 ---
 
-## What v0.1 does
+## What is built today (v0.1 Live Workbench)
 
-| Capability | What you get |
+| Capability | What is implemented now |
 |---|---|
-| **Verified Portal Presets** | 6–8 Week-0-audited presets for real uploadable Nigerian portals and major visas (plus clear guidance on quirks) |
-| **Paste-a-Rule & Custom Fit** | Paste any portal requirement or error text (e.g. `"Passport must be JPG, max 25KB, 300x300px"`) to auto-fill editable width, height, and KB settings |
-| **Shareable Portal Links** | Copy a plain link (`?n=UNILAG&w=300&h=300&max=25`) for WhatsApp/Telegram groups so classmates skip setup (badged `"Shared custom rule — confirm on portal"`) |
-| **Exact KB Window Encoding** | Binary search over JPEG quality to land cleanly under `max` KB and above `min` KB, with neutral filenames (`NYSC-photo-42KB.jpg`) and Web Share support |
-| **4×6 Print Sheet Packer** | Deterministic 300 DPI PNG tiling (with optimal 0°/90° rotation and cut marks), supporting both single-person sheets and multi-photo café/family mode |
-| **Binary X-Ray & Silent EXIF Scrub** | Zero-dependency header inspector (`inspect.ts`) detects and auto-fixes common silent rejection traps (progressive JPEG `SOF2`, sideways EXIF orientation, `.jpeg`/container mismatches incl. HEIC guidance, wide-gamut/CMYK ICC profiles, WhatsApp compression) and strips GPS/EXIF on export |
+| **Live Resize & Compress Workbench (`/`)** | Drop, paste (`Ctrl+V`), or pick any JPG/PNG/WebP image with instant live KB readout, `%` delta, and `Hold to see the original` comparison |
+| **Fit Modes & Interactive Framing** | *Fit inside (keep proportions)*, *Fill & crop edges* (with drag-to-adjust focal point), *Fill & stretch*, and *Don’t enlarge small images* |
+| **Image Enhancement (`enhance.ts`)** | Multi-step halving downscale + Rec.709 `0.5%`-clipped auto-contrast + alpha-aware post-shrink sharpening (`0–100%`) |
+| **Adaptive Format & KB Compression** | Export to `JPEG` (with automatic white background flattening), `WebP` (smallest), or lossless `PNG`; use the quality slider or set an exact max KB limit (binary search + up to 14 `0.9×` pixel step-down passes + min-KB JPEG `COM` padding + JFIF/`pHYs` DPI headers) |
+| **Unified Size & Portal Presets** | Common web/social presets (Instagram post/story, YouTube thumbnail, OG image, LinkedIn banner, WhatsApp profile, 35×45 mm Passport, Web hero, Email-safe 600 px, App icon) alongside 9 bundled portal presets (`specs/bundle.json`), `?spec=` links, and sanitized `?n=&w=&h=&min=&max=` share links |
+| **Print Sheet Packer & Static Guides** | Deterministic 300 DPI `4×6`, `5×7`, and `A4` sheet tiling (0°/90° optimal packing + multi-photo café/family mode) plus 8 handcrafted `/guides/*` pages |
+| **Binary X-Ray & Privacy Isolation** | Pure-TS `DataView` header inspection (`inspect.ts`), transparent EXIF/GPS scrubbing on export, Royal Blue / White / Dark Gray light & dark themes, offline Service Worker PWA, and an unobtrusive `Pipeline stats` footer drawer confirming `0 B` outbound |
+
+---
+
+## Multi-Page Studio Routes & Features
+
+KiloCrop is a multi-page offline browser image studio sharing one pure TypeScript engine (`src/engine/`) and one Web Worker (`src/workers/`):
+
+### Studio Routes
+
+| Route | Purpose |
+|---|---|
+| `/` | **Resize & Compress** — interactive single-image workbench with 4 fit modes (`inside`, `fill`, `pad`, `stretch`), salience auto-focus + drag pan, Backdrop styles, Placement Simulator, Quality Meter, clipboard copy, Saved Custom Presets, and recipe share links |
+| `/batch` | **Bulk Resize & ZIP** — process 2–50 images strictly 1-at-a-time in worker memory and export one `STORE` ZIP archive (`zip.ts`) |
+| `/compare` | **Format & Quality Lab** — compare JPEG vs. WebP vs. PNG side-by-side with exact KB deltas, luma PSNR ratings, and a synchronized 2×/4× zoom loupe |
+| `/documents` | **Document & Certificate Squeezer** — coarse-grid illumination leveling, paper whitening, Color Clean / Grayscale / Clean B&W modes, text sharpen, and tight 50–200 KB caps (`document.ts`) |
+| `/inspect` | **Image X-Ray & Privacy Scrub** — full `DataView` header inspection (EXIF/GPS, ICC profile, progressive `SOF2`, WhatsApp heuristic) + 1-click clean download |
+| `/print` | **Print Sheet Packer** — 300 DPI `4×6`, `5×7`, and `A4` single/multi-photo café sheet tiling (`print-sheet.ts`) |
+| `/presets` | **Size & Portal Directory** — searchable social, web, print, saved, and portal preset cards with `/guides/*` links and Paste-a-Rule input |
+| `/web-kit` | **Responsive Web Export Kit** — generate non-upscaling `480w`/`960w`/`1600w` WebP + JPEG assets, ~20 px blurred LQIP data URI, copy-ready `<picture>` HTML, and full `.zip` bundle (`web-kit.ts`) |
+| `/guides/*` | **Static Portal Guides** — 8 static HTML/SEO guides deep-linking straight into `/?spec=<id>` |
+
+### Core Capabilities
+
+1. **Placement Simulator ("Preview in context"):** Pure-CSS stage overlays checking LinkedIn banner avatar overlap, Instagram Story safe zones, YouTube timestamp pills, circular avatar crops, and OG link cards.
+2. **Pad with Matching Backdrop (`backdrop.ts`):** Fit mismatched orientations cleanly with 2-pass blurred echo, edge-sampled solid color, White, or Dark Gray backdrops.
+3. **Zero-ML Smart Salience Auto-Focus (`salience.ts`):** Fast 64×64 edge-energy + upper-third bias sets smart initial `focalX`/`focalY` in *Fill & crop*, with drag override.
+4. **Honest Quality Meter (`quality-score.ts`) & Clipboard Copy:** `< 128 px` symmetric luma PSNR comparison (*Crisp* / *Good* / *Heavy* + 1-click WebP nudge) plus 1-click `Copy image`.
+5. **PWA OS Integration (`public/manifest.webmanifest` + `pwa-launch.ts`):** `file_handlers` and Service Worker `share_target` allow desktop and Android devices to launch or share photos into KiloCrop completely offline.
 
 ---
 
 ## How privacy is verified (without taking our word for it)
 
-- **Static files only:** There is no backend, database, account system, or upload endpoint.
-- **Strict Content-Security-Policy:** Deployed with `connect-src 'self'`, `script-src 'self'`, and `Permissions-Policy: camera=(), microphone=(), geolocation=()`. The page physically cannot transmit photos off-device.
-- **Automated CI network guard:** Playwright e2e tests assert zero outbound non-same-origin network requests and verify full export flows in **airplane/offline mode**.
-- **Quiet Pipeline stats drawer:** An unobtrusive footer link (`Offline · 0 B sent · Pipeline stats`) lets engineers inspect decode time, search steps, output format, and `0` outbound bytes without cluttering everyday users.
-- **No client-side trackers or cookies:** Zero third-party scripts, fonts, or JS analytics beacons. Only script-free Cloudflare edge HTTP counts (pageviews per portal guide, country, status codes; zero PII) are used to see which portal guides help users.
+- **Static files only:** No backend, database, user accounts, cookies, or upload endpoints.
+- **Strict Content-Security-Policy (`public/_headers` + production build):** `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self'; worker-src 'self'; font-src 'self'; object-src 'none'; frame-ancestors 'none'` — zero external fonts, scripts, or beacons, and zero inline `style=` attributes.
+- **Automated CI network & CSP guards:** Playwright E2E tests intercept and fail on any non-same-origin request or `securitypolicyviolation` event, and verify offline processing in browser airplane mode.
+- **On-demand `Pipeline stats` telemetry:** Quiet footer drawer (`Offline-ready · 0 B sent · Pipeline stats`) displays decode/enhance/encode timings, quality steps, and `0 B` outbound bytes.
 
 ---
 
-## Portal specs as data
+## Tech stack & verified footprint
 
-Each built-in preset is stored as a JSON file in `specs/` and validated at build time. The values below are placeholders—real values are verified directly against portals in Week 0 (`TODO.md` T-003) before any preset ships.
-
-```json
-{
-  "id": "example-portal-photo",
-  "schemaVersion": 1,
-  "title": "Example portal photo (placeholder)",
-  "region": "NG",
-  "status": "draft",
-  "output": {
-    "units": "px",
-    "width": 300,
-    "height": 300,
-    "dpi": null,
-    "format": "jpeg",
-    "fileSizeKb": { "min": 15, "max": 50 }
-  },
-  "framing": {
-    "headHeightPct": [65, 80],
-    "eyeLineFromTopPct": [40, 50]
-  },
-  "provenance": {
-    "kind": "public-page",
-    "sourceUrl": null,
-    "archiveUrl": null,
-    "verifiedOn": null,
-    "notes": "Placeholder only; verify live portal before publishing."
-  }
-}
-```
-
-### Spec status levels
-
-| Status | Meaning |
-|---|---|
-| `draft` | Unverified placeholder; excluded from production builds. |
-| `checked` | Verified by a maintainer against an official public page (`sourceUrl` + archive snapshot) or a live authenticated portal screenshot/check, with `verifiedOn` date. |
-| `stale` | Not re-checked in over 12 months or flagged as changed. Shown with a warning banner. |
-
----
-
-## Tech stack & performance budgets
-
-| Concern | Choice (v0.1) | Why |
+| Concern | Current Choice | Verified Metric / Reason |
 |---|---|---|
-| **UI & Build** | Preact + TypeScript (strict) + Vite | Small runtime bundle for budget Android devices and fast 3G/4G loads |
-| **Core Engine** | Pure DOM-free `src/engine/` + single plain Web Worker | Keeps image processing off the UI thread; cleanly extractable as a future `<kilocrop-input>` Web Component |
-| **Image Pipeline** | `createImageBitmap` (downscale-first), native `canvas.toBlob` / `convertToBlob`, pure-TS JFIF/PNG DPI writer | 0 KB extra WASM payload; explicitly bounded for iOS Safari's 16.7 MP canvas cap and 2–4 GB Android RAM |
-| **Offline & Hosting** | Minimal Service Worker + Cloudflare Pages (`_headers` CSP) | Instant offline repeat use; GitHub Pages supported as fallback |
-| **Testing** | Vitest + `fast-check` + Playwright | Property-based KB/layout guarantees + CI zero-network & offline assertions |
-
-**v0.1 Budgets:** Core shell JS ≤ 80 KB gzip · 0 MB ML model downloads · Tested on 2–4 GB Android (Tecno/Infinix class) and iOS Safari across 5 sequential 48 MP inputs with zero crashes.
+| **UI & Build** | Preact 10 + TypeScript (strict) + Vite 8 | Initial `index` bundle `35,423 B` gz (`61,448 B` gz across all 10 non-worker chunks, `<= 80 KB` budget); CSS `7,203 B` gz |
+| **Core Engine** | Pure DOM-free `src/engine/` + single Web Worker | `eslint-plugin-boundaries` + `no-restricted-globals` enforced; worker `13,869 B` gz (`<= 20 KB` budget) |
+| **Image Pipeline** | Downscale-first `createImageBitmap`, step-halving `OffscreenCanvas`/`canvas`, Rec.709 enhance, adaptive `convertToBlob`/`toBlob`, pure-TS JFIF/`pHYs` DPI, `STORE` ZIP, paper leveling, Web Kit | 0 MB ML/WASM downloads; capped `<= 16 MP` canvas pool + explicit `bitmap.close()` and `releaseCanvas()` cleanup |
+| **Offline & Hosting** | Minimal Service Worker (`scripts/build-sw.ts`) + Cloudflare Pages (`_headers`, `_redirects`) | Precaches `19` app shell/chunk/icon assets + handles `share_target` offline; script-free edge metrics only |
+| **Testing** | Vitest + `fast-check` + Playwright | `70` unit/property tests across `17` suites + `11` Chromium E2E/offline/CSP/OS-launch tests |
 
 ---
 
-## Getting started (developers)
+## Developers & repository layout
 
-> **Note:** KiloCrop is currently in Week 0 (pre-scaffold validation). The layout and commands below describe the v0.1 codebase starting in Week 1 (`TODO.md` T-010).
-
-Requirements: Node 20+ and pnpm 9+.
+Requirements: Node 24+ (scripts run with `--experimental-strip-types`) and pnpm 9+.
 
 ```bash
 git clone https://github.com/Jamesuchechi/KiloCrop.git
 cd KiloCrop
 pnpm install
-pnpm dev              # local dev server
+pnpm dev              # local Vite dev server
 pnpm test             # Vitest unit + fast-check property tests
-pnpm validate:specs   # schema + range sanity checks on specs/
-pnpm test:e2e         # Playwright (includes zero-network guard & offline suite)
-pnpm build            # static output in dist/
+pnpm lint             # ESLint + boundary enforcement
+pnpm typecheck        # TypeScript strict check
+pnpm format:check     # Prettier formatting check
+pnpm validate:specs   # validate specs/ and emit specs/bundle.json
+pnpm build            # validate specs -> Vite build -> guides -> SW -> bundle budget gate
+pnpm test:e2e         # Playwright E2E + zero-network + offline airplane-mode tests
 ```
-
-Planned v0.1 layout:
 
 ```text
 KiloCrop/
-├─ specs/            # JSON portal presets + schema + validation
+├─ index.html                     # App entry HTML (production CSP injected on build)
+├─ specs/                         # Verified JSON portal presets + schema + bundle.json (1,776 B gzip)
 ├─ src/
-│  ├─ app/           # Preact shell, routing, state
-│  ├─ ui/            # crop editor (head-zone overlay), rule paster, print sheet UI
-│  ├─ engine/        # pure DOM-free TS: inspect, decode, geometry, encode, dpi, print-sheet, rule-parser
-│  ├─ workers/       # single plain Web Worker wrapper + main-thread fallback
-│  └─ sw/            # minimal offline service worker
-├─ scripts/          # spec validation/bundling + static portal guide generator
-├─ e2e/              # Playwright flows + zero-outbound-request guard + offline tests
-└─ public/           # Cloudflare _headers, manifest, icons
+│  ├─ app/                        # Preact shell (App.tsx, main.tsx, router.tsx, pwa-launch.ts, styles.css)
+│  ├─ ui/                         # Studio controls, stage, placement simulator, and lazy /pages/* views
+│  ├─ engine/                     # Pure DOM-free TS: decode, geometry, enhance, backdrop, salience, encode, dpi, inspect, presets, print-sheet, rule-parser, specs, quality-score, zip, document, web-kit, pipeline
+│  └─ workers/                    # Typed postMessage protocol, single worker bitmap cache, main-thread fallback
+├─ scripts/                       # validate-specs, build-guides, build-sw, check-bundle-budget, serve-dist
+├─ e2e/                           # Playwright CSP, zero-outbound-network, and offline SW tests
+├─ docs/                          # PORTAL_AUDIT, DEVICE_MATRIX, WEEK0_FIELD_CHECK, LAUNCH_KIT
+├─ experiments/                   # Standalone 48 MP mobile memory stress harness
+└─ public/                        # _headers, manifest.webmanifest, guides.css, icons
 ```
 
 ---
 
-## Roadmap & non-goals
+## Explicit non-goals & honest limitations
 
-- **v0.1 (Weeks 0–3):** Week-0 portal audit & mobile 48 MP memory stress test → manual crop with head-zone guide, Paste-a-Rule parser & shareable query links, Binary X-Ray (`inspect.ts`), min–max KB binary search, 6–8 verified upload presets, 4×6 300 DPI print sheet (single & multi-photo café mode), offline PWA, handcrafted portal guides.
-- **v0.2+ (Conditional on v0.1 traction):** Extract `src/engine/` into a drop-in `<kilocrop-input>` Web Component / npm package; add a **Certificate / Slip Squeezer** (document mode keeping WAEC/NYSC/degree scans sharp under 100–200 KB); evaluate `@jsquash/jpeg` (Apache-2.0) only if native JPEG struggles under 25 KB; lightweight non-AI plain-wall/lighting check (<5 KB); signature cleanup if users ask for it.
-
-**Explicit non-goals:** Accounts, cloud uploads/sync, cosmetic filters or face modification, bundling heavy WASM decoders like `libheif` (~1.5 MB), AI background replacement (explicitly banned by US/UK/Canada passports, heavy on mobile data/RAM, and prone to restrictive licenses), live-capture-only IDs (NIN, JAMB UTME, FRSC, school WAEC/NECO), and guaranteeing agency approval.
-
----
-
-## Honest limitations & disclaimer
-
-- KiloCrop formats photos to **published technical limits** (pixel size, aspect ratio, DPI, KB range); it **cannot guarantee acceptance** by any agency or portal.
-- Portal rules change frequently and sometimes sit behind login walls. Always double-check the target form's instructions—and use **Paste portal rule** or **Custom** if a limit changed.
-- Not affiliated with any government agency, examination body, or university.
+- **Explicit non-goals:** User accounts, cloud storage/sync, beauty filters or face retouching, heavyweight ~1.5 MB WASM decoders (`libheif`), AI background removal (banned on US/UK/Canada passports, heavy on 2–4 GB mobile RAM/data, and license-hazardous), live-biometric-only portals (`NIN`, `FRSC`, `JAMB UTME`, school `WAEC`/`NECO`), and guaranteeing official agency acceptance.
+- **Limitations:** HEIC files from iPhones cannot be decoded by Chrome on Windows/Android natively (`inspect.ts` detects `ftypheic` and shows a 1-line iPhone Safari / *Most Compatible* tip). Browser WebP encoding support varies slightly on older browsers (automatically detected and surfaced in the status note). Always confirm final portal rules on live forms.
 
 ---
 

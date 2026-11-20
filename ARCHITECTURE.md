@@ -1,264 +1,204 @@
 # KiloCrop Architecture
 
-`Status: v0.1 MVP target` · `Repo: https://github.com/Jamesuchechi/KiloCrop` · `Code license: MIT` · `Spec data: CC0-1.0`
+`Status: Full multi-page browser image studio built (Phases 1–3); ready for device audit & release` · `Repo: https://github.com/Jamesuchechi/KiloCrop` · `Code license: MIT` · `Spec data: CC0-1.0`
 
-KiloCrop is a **static, backend-less, offline-capable** web app that crops, sizes, and compresses photos to exact portal pixel/mm and KB limits entirely in the user's browser.
+KiloCrop is a **static, backend-less, offline-capable** browser image studio built to resize, enhance, and compress images cleanly so they look sharper and fit anywhere they are placed.
 
 ---
 
-## 1. Goals, non-goals, and principles
+## 1. Goals, non-goals, and core principles
 
 ### Goals
-- Fit real smartphone photos (up to 48 MP) to exact portal pixel/mm dimensions and **min–max KB** ranges on **2–4 GB Android phones and iOS Safari** without tab crashes.
-- Handle the long tail on Day 1 via a deterministic **"Paste portal rule / error message"** parser alongside 6–8 verified uploadable portal presets.
-- Pack single-person and multi-customer **4×6 in (300 DPI) print sheets** with zero ML overhead.
-- Keep `src/engine/` pure and DOM-free so it can later be extracted into a drop-in `<kilocrop-input>` Web Component / npm package.
+- **Make resized images look better:** Progressive step-halving downscale, Rec.709 auto-contrast, and alpha-aware post-shrink sharpening avoid blurry or washed-out outputs.
+- **Fit any destination cleanly:** Support pixel targets, Fit Inside / Fill & Crop (drag focal point) / Fill & Stretch (plus planned Pad Backdrop), no-upscale toggles, JPEG/WebP/PNG format conversion, quality control, exact KB ceilings/windows, 300 DPI print sheets, document scan cleanup, and responsive dev exports.
+- **Stay fast and safe on real phones:** Handle up to 48 MP photos safely on **2–4 GB Android phones and iOS Safari** without tab OOM kills.
+- **Scale cleanly from single workbench to multi-page studio:** Route dedicated workflows (`/batch`, `/compare`, `/documents`, `/inspect`, `/print`, `/presets`, `/web-kit`) as lazy-loaded UI views over one shared pure-TypeScript engine (`src/engine/`).
 
-### Non-goals (v0.1)
-- No backend, user accounts, cookies, or client-side analytics beacons.
-- No AI background replacement (explicitly rejected by US/UK/Canada passports, heavy on mobile data/RAM, and prone to AGPL/non-commercial model licenses).
-- No live-capture-only IDs (NIN/NIMC, FRSC Driver's Licence, JAMB UTME, and school WAEC/NECO are excluded because users cannot upload photos to them).
-- No cosmetic filters, face modification, or acceptance guarantees.
+### Non-goals
+- No backend servers, accounts, telemetry beacons, third-party fonts, or cloud storage.
+- No AI background replacement (banned by US/UK/Canada passports, restrictive model licenses, excessive download/RAM cost on mobile).
+- No bundling ~1.5 MB WASM decoders (`libheif`); detect undecodable `ftypheic` headers and show a crisp iPhone tip.
+- No live-capture-only biometric documents (`NIN/NIMC`, `FRSC`, `JAMB UTME`, school `WAEC/NECO`).
 
 ### Principles
-1. **Nothing leaves the device.** Enforced via strict CSP and CI network guards.
-2. **Mobile memory safety first.** Downscale before editing, release every `ImageBitmap` and `<canvas>` backing store immediately, hold one image at a time.
-3. **Pure engine, thin UI.** `src/engine/` has zero DOM or UI imports and runs identically in a Web Worker, main thread fallback, or Vitest.
-4. **Specs are data + user overrides are first-class.** Every preset and parsed rule compiles to the same `Spec` structure.
+1. **Nothing leaves the device.** Enforced via strict HTTP/meta CSP (`connect-src 'self'`, `script-src 'self'`, `style-src 'self'`), zero inline `style=` attributes, zero external assets, and Playwright outbound-network guards.
+2. **Mobile memory safety first.** Downscale before pixel manipulation, cap every canvas allocation `<= 16,000,000` pixels (under iOS Safari's 16.7 MP cap), call `bitmap.close()` and shrink scratch canvases (`width = height = 1`) immediately in `try/finally`, and process batch jobs strictly one file at a time.
+3. **Pure engine, thin UI.** `src/engine/` is strictly DOM-free and UI-free (`eslint-plugin-boundaries` + `no-restricted-globals`), running identically inside the Web Worker, main-thread DOM fallback, Vitest, or a future `<kilocrop-input>` package.
+4. **Data-driven presets + Shareable URLs.** General presets, curated portal JSON files (`specs/`), `parsePortalRule(text)` snippets, URL query links (`?spec=` / `?n=&w=&h=`), and saved custom presets all compile to uniform typed options.
 
 ---
 
-## 2. System overview
+## 2. System overview & multi-page routing
+
+### Runtime architecture
 
 ```text
-┌─────────────────────────── Browser (Static SPA / PWA) ───────────────────────────┐
-│                                                                                  │
-│  UI thread (Preact + TS)                Single Web Worker (plain postMessage)    │
-│  ┌──────────────────────────┐  transfer ┌─────────────────────────────────────┐  │
-│  │ • Portal picker / search │ ────────▶ │ src/engine/ (pure TS, no DOM)       │  │
-│  │ • Paste-a-Rule / ?n= link│           │  inspect (X-Ray) → decode (capped)  │  │
-│  │ • Pointer/kb crop editor │ ◀──────── │  → extract → resize → encode (min-  │  │
-│  │ • Result + Pipeline stats│  Blob/Msg │  max KB) → inject DPI → 4×6 packer  │  │
-│  └────────────┬─────────────┘           └─────────────────────────────────────┘  │
-│               │                                                                  │
-│  ┌────────────▼─────────────┐   ┌─────────────────────────────────────────────┐  │
-│  │ specs/bundle.json (<3 KB)│   │ Minimal Service Worker (shell + bundle.json)│  │
-│  │ localStorage (prefs only)│   └─────────────────────────────────────────────┘  │
-│  └──────────────────────────┘                                                    │
-└──────────────────────────────────────────────────────────────────────────────────┘
-                 │ static files + _headers only
-                 ▼
-   Cloudflare Pages (primary, CSP headers + cookieless edge HTTP metrics)
-   GitHub Pages (fallback, meta-CSP)
+┌────────────────────── Browser (Multi-Page Static PWA / Cloudflare Pages) ──────────────────────┐
+│                                                                                                 │
+│  Preact UI Shell + History Router (lazy route chunks keep `/` core <= 80 KB gzip)               │
+│  ┌─────────────────────────────────────────────────┐    ┌─────────────────────────────────────┐ │
+│  │ Routes:                                         │    │ Single Plain Web Worker + 1-slot    │ │
+│  │ • `/`         Live Resize, Compress & Enhance   │───▶│ working-bitmap cache (`engine.worker`)│ │
+│  │ • `/batch`    Sequential Multi-File ZIP [Plan]  │    │                                     │ │
+│  │ • `/compare`  Format & Quality Lab     [Plan]   │◀───│ Pure `src/engine/` (0 DOM imports): │ │
+│  │ • `/documents` Scan & Cert Squeezer    [Plan]   │    │ inspect → decode → fit/pad →        │ │
+│  │ • `/inspect`  Binary X-Ray & Scrub     [Plan]   │    │ enhance → encode (KB/quality/DPI) → │ │
+│  │ • `/print`    300 DPI Sheet Packer     [Promoted]│   │ quality-score / zip / print-sheet   │ │
+│  │ • `/presets`  Size & Portal Directory  [Plan]   │    └─────────────────────────────────────┘ │
+│  │ • `/web-kit`  Responsive <picture> Kit [Plan]   │                                            │
+│  └─────────────────────────────────────────────────┘                                            │
+│                                                                                                 │
+│  Static data & state: `specs/bundle.json` (1.78 KB gz) · `localStorage` custom presets (meta)   │
+│  Offline PWA: `dist/sw.js` (Precache shell, routes, guides) + OS `file_handlers`/`share_target`│
+└─────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
+
+### Route map
+
+| Route | Status | Primary Inputs & Outputs | Lazy Chunk |
+|---|---|---|---|
+| `/` | **Live** | Single image → interactive resize, crop pan, enhance, backdrop pad, placement simulator, quality meter, copy clipboard, saved custom presets & share links | Core |
+| `/guides/*` | **Live** | 8 static SEO/instructional portal guides deep-linking into `/?spec=<id>` | Static HTML |
+| `/print` | **Live** | 1 image (tiled) or up to 8 images (café/family) → 300 DPI `4×6`, `5×7`, `A4` PNG sheet | Lazy route chunk |
+| `/batch` | **Live** | 2–50 images + shared preset/KB rule → strictly sequential worker loop → `.zip` (`STORE`) | Lazy route chunk |
+| `/compare` | **Live** | 1 image → JPEG vs WebP vs PNG cards + synchronized 2×/4× zoom loupe | Lazy route chunk |
+| `/documents` | **Live** | Camera scan / certificate / signature → paper shadow leveling + B&W/grayscale + sharp KB cap | Lazy route chunk |
+| `/inspect` | **Live** | Any image → full `DataView` header X-Ray (EXIF, GPS, SOF2, ICC, WhatsApp check) + 1-click scrub | Lazy route chunk |
+| `/presets` | **Live** | Browse/search all social, web, portal, print & saved `localStorage` presets + Paste-a-Rule parser | Lazy route chunk |
+| `/web-kit` | **Live** | Hero image → `480w`/`960w`/`1600w` WebP + JPEG ZIP + 20 px LQIP data URI + `<picture>` snippet | Lazy route chunk |
+
+On Cloudflare Pages, deep-linked SPA routes resolve cleanly back to `index.html` (while physical `/guides/*` directories serve static HTML directly) and `scripts/build-sw.ts` handles offline SPA navigation fallback cleanly.
 
 ---
 
-## 3. Module map
+## 3. Module map (built vs. planned)
 
 ```text
 src/
-├─ app/
-│  ├─ main.tsx               # Bootstrap, ?spec=<id> & ?n=&w=&h= query routing, error boundary
-│  └─ state.ts               # Minimal signal state (active spec/rule, crop rect, result, stats)
-├─ ui/
-│  ├─ portal-picker.tsx      # Verified preset chips, search, Paste-a-Rule / Custom panel
-│  ├─ crop-editor/           # Touch/mouse/keyboard pan-zoom canvas + head-zone guide
-│  └─ result-view.tsx        # "Fixed N hidden issues", Save, Share link, 4×6 sheet, footer Pipeline stats drawer
-├─ engine/                   # PURE TS: NO DOM/UI IMPORTS (ESLint boundaries enforced)
-│  ├─ types.ts               # Spec, CropRect, InspectReport, PipelineStats, EncodeResult, SheetSlot
-│  ├─ geometry.ts            # mm <-> px <-> dpi, aspect fitting, single final rounding
-│  ├─ rule-parser.ts         # Deterministic parsePortalRule(text) + plain-query (parseQuerySpec/toQuerySpec) -> Spec
-│  ├─ inspect.ts             # Zero-dep DataView binary X-Ray (SOF2, EXIF, container/ICC, WhatsApp check)
-│  ├─ decode.ts              # Safe downscale-first createImageBitmap + cleanup helpers
-│  ├─ encode.ts              # Native canvas JPEG binary search (min/max KB + COM padding)
-│  ├─ dpi.ts                 # Pure-TS JPEG JFIF APP0 & PNG pHYs 300 DPI injector
-│  ├─ print-sheet.ts         # Optimal 0°/90° 4×6 / A4 packer (single & multi-photo café mode)
-│  └─ pipeline.ts            # Abortable orchestrator emitting Blob + InspectReport + PipelineStats
-├─ workers/
-│  └─ engine.worker.ts       # Single plain Web Worker + typed postMessage + main-thread fallback
-└─ sw/
-   └─ sw.ts                  # Precache app shell and specs/bundle.json; versioned cleanup
-specs/                       # One JSON file per verified uploadable portal + schema.json
-scripts/                     # validate-specs.ts (emits bundle.json), build-guides.ts
-e2e/                         # Playwright flows, zero-outbound-request guard, offline suite
+│  ├─ app/
+│  │  ├─ App.tsx                   [Built] Shell, query/spec bootstrap, debounced render queue, AbortController, multi-page wiring
+│  │  ├─ main.tsx                  [Built] Root mount + production Service Worker registration + OS launchQueue init
+│  │  ├─ pwa-launch.ts             [Built] File Handling API launchQueue & Service Worker share_target consumer (0 persistence)
+│  │  ├─ styles.css                [Built] Royal Blue / White / Dark Gray design tokens (light & dark), zero inline styles
+│  │  └─ router.tsx                [Built] Tiny History API router + dynamic import() code splitting
+│  ├─ ui/
+│  │  ├─ icons.tsx                 [Built] Crisp zero-style inline SVG studio icons
+│  │  ├─ stage-view.tsx            [Built] Drop/paste target, live KB & % readout, quality badge, hold-compare, drag focal crop
+│  │  ├─ control-panel.tsx         [Built] Preset catalog, saved/copy/paste bar, dimensions, fit/pad mode, format/KB/quality, contrast/sharpen
+│  │  ├─ print-sheet-view.tsx      [Built] 300 DPI 4×6 / 5×7 / A4 packer UI (single & multi-photo café/family)
+│  │  ├─ pipeline-stats-drawer.tsx [Built] Quiet footer + expandable decode/enhance/encode/0 B outbound telemetry
+│  │  ├─ placement-simulator.tsx   [Built] Pure-CSS LinkedIn/IG Story/YouTube/OG/Avatar safe-zone overlays
+│  │  ├─ saved-presets.ts          [Built] `localStorage` CRUD for user custom presets (numeric rules/names only)
+│  │  └─ pages/                    [Built] BatchPage, ComparePage, DocumentsPage, InspectPage, PresetsPage, WebKitPage
+│  ├─ engine/                      # PURE TS: NO DOM / PREACT / WORKER IMPORTS (ESLint enforced)
+│  │  ├─ types.ts                  [Built] OutputFormat ('jpeg'|'webp'|'png'), FitMode, SizePreset, ResizeCompress*, DocumentClean*
+│  │  ├─ geometry.ts               [Built] mm/px/DPI, computeFitPlan (inside/fill/pad/stretch/16 MP clamp), preview scales
+│  │  ├─ decode.ts                 [Built] 50 MB guard, decodeWorkingBitmap, progressive 0.5× step halving, releaseCanvas
+│  │  ├─ enhance.ts                [Built] Rec.709 0.5% auto-contrast (skips alpha=0), alpha-aware 5-tap sharpen
+│  │  ├─ encode.ts                 [Built] JPEG/WebP/PNG adaptive encode, quality search, 0.9× KB shrink loop, MIME fallback check
+│  │  ├─ dpi.ts                    [Built] Pure-TS JPEG JFIF APP0 & PNG pHYs 300 DPI binary writer + JPEG COM padding
+│  │  ├─ inspect.ts                [Built] Zero-dep DataView header X-Ray (SOF2, EXIF/GPS, ICC, CMYK, ftypheic, WhatsApp check)
+│  │  ├─ presets.ts                [Built] GENERAL_PRESETS + buildPresetCatalog(specs), categories, guide slugs, formatters
+│  │  ├─ print-sheet.ts            [Built] Optimal 0°/90° grid packing, cut marks, single/multi 300 DPI PNG renderer
+│  │  ├─ rule-parser.ts            [Built] parsePortalRule(text) + sanitized parseQuerySpec / buildRecipeQuery / parseRecipeQuery
+│  │  ├─ specs.ts                  [Built] Portal spec filter/lookup helpers
+│  │  ├─ pipeline.ts               [Built] runInspect, runExport, runResizeCompress
+│  │  ├─ backdrop.ts               [Built] 4th fit mode 'pad' (2-pass blur echo, edge color, solid white/dark gray)
+│  │  ├─ salience.ts               [Built] 64×64 edge-energy + upper-third bias initial focalX/focalY estimator
+│  │  ├─ quality-score.ts          [Built] Fast 128×128 symmetric luma PSNR check + plain-English label & WebP nudge
+│  │  ├─ zip.ts                    [Built] Pure-TS CRC32 + STORE (uncompressed) ZIP archive builder
+│  │  ├─ document.ts               [Built] Local paper illumination leveling, crisp grayscale/B&W, text sharpen & KB cap
+│  │  └─ web-kit.ts                [Built] Multi-width WebP/JPEG generation, 20 px LQIP data URI, escaped `<picture>` generator
+└─ workers/
+   ├─ protocol.ts               [Built] Typed request/response messages (expandable per new engine operation)
+   ├─ engine.worker.ts          [Built] Plain postMessage worker + single decoded working-bitmap cache + AbortController
+   └─ client.ts                 [Built] Worker wrapper + symmetric main-thread DOM fallback
 ```
 
-**Boundary rule:** `eslint-plugin-boundaries` forbids `src/engine/` from importing `src/ui/`, `src/app/`, or `window`/`document` globals, keeping future extraction as a `<kilocrop-input>` package straightforward.
+**ESLint boundary enforcement (`eslint.config.js`):**
+- `src/engine/` may import ONLY from `src/engine/` and cannot reference `window`, `document`, `localStorage`, `sessionStorage`, `HTMLElement`, `HTMLCanvasElement`, or `preact`.
+- `src/ui/` may import `src/engine/`, `src/ui/`, and `preact` (never `src/workers/` — workers stay orchestrated cleanly in `src/app/`).
 
 ---
 
-## 4. Specs & Paste-a-Rule model
+## 4. Live image pipeline & mobile memory engineering
 
-Both curated JSON presets and user-pasted portal rules produce the exact same `Spec` interface so downstream cropping, sizing, and encoding behave identically.
-
-### 4.1 Abridged spec schema
-
-```jsonc
-{
-  "id": "string-kebab-case",
-  "schemaVersion": 1,
-  "title": "Human-readable portal name",
-  "region": "NG | US | UK | INTL",
-  "status": "draft | checked | stale",
-  "output": {
-    "units": "px | mm",
-    "width": 600,
-    "height": 800,
-    "dpi": null,                     // required when units = "mm" (e.g. 300)
-    "format": "jpeg",                // v0.1 focuses on portal JPEG; PNG supported for sheets
-    "fileSizeKb": { "min": 15, "max": 100 }
-  },
-  "framing": {
-    "headHeightPct": [65, 80],       // displayed as a visual guide overlay in crop-editor
-    "eyeLineFromTopPct": [40, 50]
-  },
-  "provenance": {
-    "kind": "public-page | authenticated-portal",
-    "sourceUrl": "https://… | null", // required when kind = "public-page"
-    "archiveUrl": "https://web.archive.org/… | null",
-    "verifiedOn": "YYYY-MM-DD",
-    "notes": "Portal quirks (e.g. rejects progressive JPEG or white background required)"
-  }
-}
-```
-
-### 4.2 Build-time registry & statuses
-- `scripts/validate-specs.ts` validates schema, sanity bounds (`min <= max`, HTTPS URLs), excludes `draft` specs, and bundles published presets into one tiny `specs/bundle.json` (**< 3 KB gzipped**). No runtime JSON Schema engine (no Ajv standalone bundle) and no per-spec network waterfall.
-- Statuses: `draft` (hidden), `checked` (verified by a maintainer against a public source or a live authenticated portal upload screen with `verifiedOn` date), `stale` (>12 months old or flagged changed).
-
-### 4.3 `parsePortalRule(text)`
-Because hundreds of university, scholarship, and employer portals will never have a curated JSON file, `src/engine/rule-parser.ts` parses pasted requirement or error strings (e.g. `"Passport must be JPG, max 25KB, 300x300px"` or `"Photo size between 20 KB and 50 KB, 3.5x4.5cm"`) via deterministic unit/range regexes into editable UI chips before running the pipeline.
-
-### 4.4 Shareable plain-query portal links
-To enable WhatsApp/Telegram viral sharing without opaque base64 recipe hashes or a backend, `rule-parser.ts` also exposes `parseQuerySpec` / `toQuerySpec` for clean URLs such as `/?n=UNILAG+Post-UTME&w=300&h=300&max=25&u=px` (with optional `min`). All numeric values are strictly clamped (`w`/`h` bounds, `min <= max`), the `n` label is stripped to short plain text rendered strictly as text, and any rule loaded via query params displays a mandatory `"Shared custom rule — confirm on portal"` badge.
-
----
-
-## 5. Image pipeline & mobile memory engineering
-
-### 5.1 Stages
+### 4.1 Live pipeline (`runResizeCompress`)
 
 ```text
-File/Blob
-  ├─▶ inspect           zero-dep DataView scan on raw header slice -> InspectReport (incl. ftypheic tip)
-  ├─▶ decodePreview     createImageBitmap(file, { imageOrientation: 'from-image', resizeWidth/Height <= 1600 })
-  ├─▶ [UI Crop Editor]  user pans/zooms under fixed spec aspect + head-zone visual overlay
-  ├─▶ extractCrop       crop original to exact output W×H (verify Safari/Chrome behavior in Week 0)
-  ├─▶ encodeToWindow    binary search JPEG quality to land in [minKb, maxKb] (canvas re-encode strips EXIF)
-  └─▶ injectDpi         patch JFIF APP0 (JPEG) or pHYs (PNG) header for physical print size
+File / Clipboard Paste / Drop
+  ├─▶ runInspect (<= 256 KB header slice)
+  │     Detects dimensions, EXIF orientation, GPS, SOF2 progressive JPEG,
+  │     Display-P3/CMYK profiles, WhatsApp caps, and ftypheic blocking tip.
+  ├─▶ decodeWorkingBitmap (cached once per sourceKey in engine.worker.ts)
+  │     Capped at 3200–4000 px long edge (and <= 16 MP area) with from-image orientation.
+  ├─▶ computeFitPlan (`inside` | `fill` | `stretch` [+ planned `pad`])
+  │     Applies focalX/focalY crop panning (initial salience planned) + 16 MP ceiling.
+  ├─▶ scaleBitmapToCanvas (`decode.ts`)
+  │     Multi-step 0.5× halving passes with imageSmoothingQuality='high'; every
+  │     intermediate canvas released immediately via releaseCanvas().
+  ├─▶ enhanceCanvas (`enhance.ts`)
+  │     1) applyAutoContrast: Rec.709 256-bin histogram, 0.5% clip, skips flat or
+  │        alpha=0 pixels.
+  │     2) applySharpen: 5-tap Laplacian sharpen scaled 0–100%, protecting transparent
+  │        edges from dark halos.
+  └─▶ encodeAdaptiveCanvas (`encode.ts`)
+        • JPEG flattens alpha onto #ffffff; WebP/PNG preserve alpha.
+        • Quality slider (0.40–1.00) when unbounded; or 7-step binary search in [0.30, 0.95]
+          plus up to 14 × 0.9× shrink steps when maxKb is set (or COM pad for JPEG minKb).
+        • Reads returned Blob MIME to flag browser WebP fallback cleanly.
 ```
 
-`pipeline.ts` also emits lightweight `PipelineStats` (decode time in ms, binary-search iterations and final quality `q`, input vs. output bytes, and fixed X-Ray issues). These power an unobtrusive footer **Pipeline stats** drawer (`Offline · 0 B sent · Pipeline stats`) that keeps the main screen clean for everyday users while giving engineers verifiable runtime telemetry.
-
-### 5.2 Mobile memory limits (iOS Safari & 2–4 GB Android)
-- **iOS Safari constraints:** WebKit caps a single `<canvas>` at **16.7 MP** (4096×4096) and shares a **~256–384 MB** total canvas backing-store pool across the tab before silently killing/reloading the page.
-- **Rules enforced across `decode.ts`, `encode.ts`, and `crop-editor/`:**
-  1. **Downscale-first decode:** Interactive crop preview never decodes above **1600 px** on the long edge (~2.5 MP).
-  2. **Week-0 verified full-res extract:** Test `createImageBitmap(file, sx, sy, sw, sh, { resizeWidth, resizeHeight, imageOrientation: 'from-image' })` on real iOS Safari and 2–4 GB Android in `TODO.md` `T-004`. If Safari decodes the full 48 MP buffer internally or ignores crop rects with orientation, fall back to a capped intermediate decode (`<= 3200 px` long edge, well under 16.7 MP while preserving crisp portrait resolution for any <= 1200 px portal/print target).
-  3. **Explicit immediate disposal:** Call `bitmap.close()` as soon as pixels are drawn or encoded, and release temporary canvases (`canvas.width = 1; canvas.height = 1; ctx = null`) after every encode step.
-  4. **Single-image invariant:** Selecting a new photo revokes prior object URLs and closes prior bitmaps before decoding.
+### 4.2 Mobile memory discipline (`2–4 GB Android` & `iOS Safari`)
+- iOS Safari caps individual `<canvas>` instances at **16.7 MP** and kills tabs exceeding **~256–384 MB** across all active canvas backing stores.
+- KiloCrop enforces:
+  1. Single-image working bitmap cache (changing quality/sharpen sliders skips 48 MP re-decode while closing prior bitmaps when switching files or resetting).
+  2. Output area hard-clamped `<= 16,000,000` pixels (`MAX_SAFE_CANVAS_AREA`).
+  3. Immediate `releaseCanvas()` (`width = 1; height = 1`) on every halving step, JPEG flatten step, and `0.9×` shrink step inside `try/finally`.
+  4. Planned `/batch` runs a **strictly sequential queue** (`1` file decoded/encoded/released at a time), appending only small encoded `Uint8Array` chunks into the final `STORE` ZIP blob.
 
 ---
 
-## 6. Core algorithms
+## 5. Planned module specifications (multi-page studio)
 
-### 6.1 Units & geometry (`geometry.ts`)
-- `px = Math.round((mm / 25.4) * dpi)` (e.g. 35×45 mm at 300 DPI = 413×531 px).
-- Floating-point math throughout crop mapping; round to integer pixels once at final output dimensions.
-
-### 6.2 Size-targeting encoder (`encode.ts`)
-- **Binary search (7 steps):** Search `q ∈ [0.35, 0.95]` using native `OffscreenCanvas.convertToBlob({ type: 'image/jpeg', quality: q })` (with `HTMLCanvasElement.toBlob` fallback). Keep the highest-quality result with `bytes <= maxBytes`.
-- **Min-KB handling:** If `bytes < minBytes` at `q = 0.95`, first try `q = 1.0`. If still below `minBytes` (common on clean studio backgrounds at small px sizes), append a harmless JPEG `COM` (`0xFFFE`) comment padding segment in `ArrayBuffer` (disclosed in the UI, never altering pixels).
-- **Infeasible handling:** If `q = 0.35` still exceeds `maxBytes` at fixed exact `px` dimensions, return an explicit `Infeasible` warning showing achieved KB vs target KB and offering an optional dimension step-down only when the spec allows it.
-- **Conditional v0.2 gate:** Native canvas JPEG adds **0 KB** to the app bundle. `@jsquash/jpeg` (MozJPEG WASM, Apache-2.0) is only added in v0.2 if Week-0 device tests show native JPEG cannot meet 15–25 KB portal targets cleanly.
-
-### 6.3 DPI metadata injection (`dpi.ts`)
-Canvas exports drop physical DPI and write standard 72/96 DPI headers. A tiny (~80-line) pure-TS binary patcher sets exact DPI in:
-- JPEG JFIF `APP0` (`units = 1`, `Xdensity = dpi`, `Ydensity = dpi`) right after `SOI`, and
-- PNG `pHYs` chunk (`pixelsPerMeter = Math.round(dpi / 0.0254)`) with updated CRC32 before `IDAT`.
-
-### 6.4 4×6 Print sheet packer (`print-sheet.ts`)
-- Supports presets (`4×6 in` at 300 DPI = `1200×1800 px`, `A4` at 300 DPI) with configurable margin `m` and cut gutter `g`.
-- Evaluates `0°` and `90°` photo orientation and selects `max(count)` (e.g. `35×45 mm` fits **8 photos** rotated on a 4×6 sheet vs 6 upright).
-- **Single-person & Multi-photo (Café / Family) modes:** Each slot accepts either a cloned image or distinct cropped faces, with optional tiny gutter initials/cut marks so cyber cafés can print 4–8 applicants on one 4×6 sheet.
-
-### 6.5 Binary X-Ray & WhatsApp heuristic (`inspect.ts`)
-Pure `DataView` binary inspector running in `< 2 ms` on the input `ArrayBuffer` header slice (zero external libraries) to diagnose and auto-fix silent portal rejection causes:
-1. **Progressive JPEG (`SOF2` / `0xFFC2`):** Flagged when present because legacy portal validators (PHP/GD/Java) often reject progressive scans; canvas re-encoding outputs baseline JPEG (`SOF0`).
-2. **EXIF Orientation trap (`0x0112 !== 1`):** Flagged when phone orientation relies on metadata rather than pixel order; `createImageBitmap(..., { imageOrientation: 'from-image' })` bakes pixels upright before stripping EXIF.
-3. **Container / extension mismatch:** Verifies magic bytes (`FFD8FF` JPEG, `89504E47` PNG, `RIFF....WEBP`, `ftypheic`/`ftypmif1` HEIC). Detects renamed WebP/PNG or `.jpeg` filenames; when undecodable `ftypheic` arrives on non-Safari browsers, fails cleanly with a 1-line iPhone export tip rather than bundling a ~1.5 MB `libheif` WASM decoder.
-4. **Non-sRGB / CMYK ICC profile (`APP2` ICC_PROFILE or 4-component `SOF`):** Flagged for Display-P3/CMYK inputs that look washed out or fail strict portal checks; canvas export normalizes output to sRGB.
-5. **WhatsApp-compression heuristic (advisory):** Flags inputs matching standard WhatsApp caps (missing EXIF + 1600/1280 px edge + low bytes-per-pixel) and suggests asking the sender to forward **as Document**—never blocking export.
+1. **Placement Simulator (`src/ui/placement-simulator.tsx`):** Zero-canvas pure CSS overlay masks over `.view img` triggered by contextual presets (`LinkedIn banner` bottom-left circle mask, `Instagram story` top/bottom HUD rails, `YouTube thumbnail` bottom-right `12:34` pill, `Avatar` circular frame, `OG / Link preview` card chrome).
+2. **Backdrop Padding (`src/engine/backdrop.ts`):** When `fit === 'pad'`, fills destination canvas using either a tiny-canvas 2-pass blurred echo of the image (rendered onto e.g. 96 px canvas → drawn back smoothed onto full `dw × dh`), median edge-pixel color, or solid `#FFFFFF` / `#111827`, then draws the proportionally centered foreground image inside.
+3. **Smart Focal Heuristic (`src/engine/salience.ts`):** Downsamples working bitmap to `64×64` via scratch canvas, scores vertical/horizontal gradient magnitudes weighted by an upper-third vertical bell (`0.25–0.45` height for portraits), and computes default normalized `(focalX, focalY) ∈ [-1, 1]` before user drag refinement.
+4. **Quality Meter (`src/engine/quality-score.ts`):** Decodes output `Blob` and pre-encode canvas onto matching `128×128` buffers, calculates luma MSE → PSNR/lightweight SSIM proxy, and emits `{ band: 'crisp' | 'good' | 'artifacted', suggestWebp: boolean }`.
+5. **Document & Scan Squeezer (`src/engine/document.ts`):** Divides canvas by a heavily blurred local-illumination background estimate (removing phone shadow gradients from paper), optionally converts to crisp high-contrast grayscale or adaptive clean monochrome, sharpens strokes, and targets `<= 100–200 KB`.
+6. **Zero-Dep Stored ZIP (`src/engine/zip.ts`):** Writes standard PKZIP local file headers, data descriptors/sizes, central directory records, and IEEE 802.3 CRC32 table using compression method `0` (`STORE` — no redundant zlib inflation since JPEG/WebP/PNG are already compressed).
+7. **Responsive Web Kit (`src/engine/web-kit.ts`):** Reuses `scaleCanvasToDimensions` + `encodeAdaptiveCanvas` at `[480, 960, 1600]` (clamped by source width when `dontEnlarge`), generates a tiny `~20 px` base64 WebP/JPEG LQIP, packages assets via `zip.ts`, and formats an idiomatic `<picture><source type="image/webp" srcset="…">…</picture>` block.
+8. **Saved Custom Presets (`src/ui/saved-presets.ts`):** Persists only compact JSON preset records (`{ id, label, width, height, fit, format, maxKb, autoContrast, sharpenPct }`) in `localStorage` — never image blobs or filenames.
 
 ---
 
-## 7. Privacy, CSP, and security
+## 6. Design system, privacy & CSP
 
-### 7.1 Network isolation (`public/_headers` on Cloudflare Pages)
-
-```text
-/*
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self'; worker-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'
-  Permissions-Policy: camera=(), microphone=(), geolocation=()
-  Referrer-Policy: no-referrer
-  X-Content-Type-Options: nosniff
-```
-
-- Notice v0.1 requires neither `'wasm-unsafe-eval'` nor `mediastream:` because no WASM codecs, ML models, or live camera streams are shipped.
-- GitHub Pages fallback embeds the `<meta http-equiv="Content-Security-Policy">` subset (excluding `frame-ancestors`).
-
-### 7.2 Threat model (v0.1 scope)
-
-| Threat | Mitigation |
-|---|---|
-| Outbound photo leak / accidental telemetry | Zero backend, strict CSP `connect-src 'self'`, Playwright CI network guard failing on any non-same-origin request |
-| Malicious or XSS-laced spec/rule/query input | All spec fields, parsed rules, and `?n=` query labels sanitized and rendered strictly as text; numeric bounds clamped; query rules badged `"Shared custom rule — confirm on portal"` |
-| Oversized / decompression-bomb image | Byte & pixel sanity checks, downscale-first `createImageBitmap`, immediate bitmap/canvas disposal |
-| Compromised dependency | Minimal runtime deps (Preact only in core), pinned `pnpm-lock.yaml`, `pnpm audit` in CI |
-| Wrong portal limit feedback | Quiet footer/drawer "Report a wrong limit" link opens a zero-login external form in a new tab only on click (never sends photos or auto-triggers) |
+- **Palette:** Royal Blue (`#2563EB` primary CTA/controls, `#1D4ED8` light links/highlights, `#60A5FA` dark-mode links), Crisp White (`#FFFFFF`), Dark Gray (`#111827` / `#F3F4F6` light; `#111318` / `#1A1D24` dark via `:root[data-theme]`).
+- **CSP & Zero Inline Styles:** Production `vite.config.ts` and Cloudflare `public/_headers` serve `style-src 'self'`, `script-src 'self'`, `connect-src 'self'`, `font-src 'self'`, `Permissions-Policy: camera=(), microphone=(), geolocation=()`. Zero Google Fonts, zero `<style>` tags in JSX, and zero `style=` HTML attributes (enforced in CI checks).
+- **PWA OS Integration:** `file_handlers` (`image/jpeg`, `image/png`, `image/webp`) and offline Service Worker `share_target` configured in `public/manifest.webmanifest` and `scripts/build-sw.ts`, wired via `src/app/pwa-launch.ts` on mount with immediate CacheStorage purge after handoff.
 
 ---
 
-## 8. Testing, CI, and deployment
-
-- **Unit & property tests (Vitest + `fast-check`):**
-  - `geometry.ts`: `mm <-> px` round-trips, aspect bounds.
-  - `encode.ts`: output strictly within `[min, max]` bytes or explicit `Infeasible`; deterministic across runs.
-  - `print-sheet.ts`: zero slot overlap, all slots inside printable bounds, optimal count vs brute-force small cases.
-  - `rule-parser.ts`: ≥90% parse accuracy across a corpus of 25–30 real Nigerian portal error/instruction strings, plus `parseQuerySpec` / `toQuerySpec` round-trips and malformed query-param clamping.
-  - `inspect.ts`: binary header fixture tests covering `SOF0`/`SOF2` markers, EXIF orientation tags, WebP/PNG/JPEG/HEIC (`ftypheic`) magic bytes, non-sRGB ICC detection, and WhatsApp heuristic.
-- **E2E tests (Playwright):** Upload → crop → KB encode → 4×6 print sheet in Chromium/WebKit with:
-  1. **Zero-outbound-request network guard** (fails on any request outside same-origin).
-  2. **Airplane-mode test** (`context.setOffline(true)` after load).
-- **Budgets in CI:** Core shell JS **≤ 80 KB gzip**.
-- **Hosting & Guides:** Deployed on Cloudflare Pages (`main`). Static build generates 6–8 **handcrafted portal guide pages** (one per verified preset with genuine portal steps/quirks and deep link `/?spec=<id>`), avoiding thin doorway pages. Script-free Cloudflare edge HTTP metrics measure pageviews per guide without touching user browsers.
-
----
-
-## 9. Decision log (ADRs)
+## 7. Decision log (ADRs)
 
 | # | Decision | Status | Rationale |
 |---|---|---|---|
-| 001 | No backend, ever | Accepted | Zero upload liability, free static hosting, instant trust proof |
-| 002 | Preact + TypeScript (strict) + Vite | Accepted | Tiny runtime footprint for low-RAM Androids; familiar React ergonomics |
-| 003 | Unified `Spec` model for JSON presets, `parsePortalRule`, and `?n=` query links | Accepted | One pipeline handles curated portals, pasted error text, and shareable plain-query WhatsApp links |
-| 004 | Zero client-side analytics; script-free Cloudflare edge metrics allowed | Amended | Preserves `connect-src 'self'` and zero-cookie privacy while avoiding flying blind on guide traffic |
-| 005 | Cloudflare Pages primary, GitHub Pages fallback | Accepted | Real HTTP CSP and `Permissions-Policy` headers via `_headers` |
-| 006 | Safe downscale-first decode + explicit bitmap/canvas cleanup | Accepted | Prevents iOS Safari 16.7 MP / 256–384 MB pool crashes and 2 GB Android OOMs |
-| 007 | Native canvas JPEG encoder in v0.1; `@jsquash/jpeg` conditional in v0.2 | Reversed (for v0.1) | 0 KB bundle overhead; add WASM only if real-device tests show quality fails at 15–25 KB |
-| 008 | No AI background replacement in v0.1 | Reversed | Banned by US/UK/Canada passports, AGPL/non-commercial model licenses, 40–50 MB OOM/data trap |
-| 009 | Photos in memory only; silent EXIF strip on export | Accepted | Zero persistence; eliminates separate Scrub tool UI bloat |
-| 010 | MIT for code, CC0-1.0 for specs | Accepted | Matches `LICENSE` and `LICENSE-SPECS`; maximises reuse and npm compatibility |
-| 011 | Zero-login link for user limit reports; GitHub Issues for devs/PRs | Reversed | Non-technical users hit a login wall on GitHub Issues; remove post-export nagging |
-| 012 | Pure DOM-free `src/engine/` extractable as `<kilocrop-input>` | New | Enables clean Web Component / npm extraction in v0.2 without rewriting processing logic |
-
----
-
-## 10. Deferred / v0.2+ candidates
-
-Items intentionally kept out of v0.1 (never start before v0.1 ships and clears the 30-day validation gates in [`TODO.md`](TODO.md)):
-- Standalone `<kilocrop-input>` Web Component / npm package extraction from `src/engine/`.
-- **Certificate / Slip Squeezer** (document mode keeping WAEC/NYSC/degree scans crisp under 100–200 KB) and `pdf-lib` PDF print sheets if user demand warrants them.
-- `@jsquash/jpeg` (MozJPEG WASM) if native JPEG fails quality checks under 25 KB (`libheif` WASM remains excluded to protect the ≤ 80 KB bundle budget).
-- Lightweight non-AI plain-wall & lighting pre-check (<5 KB, calibrated on contrast/clipping rather than global brightness for dark skin tones) and signature/thumbprint extraction.
+| 001 | No backend, ever | Accepted | Zero upload liability, free static hosting, provable offline trust |
+| 002 | Preact + TypeScript (strict) + Vite | Accepted | Core shell `26.7 KB` gzip for fast loads on budget Androids |
+| 003 | Unified preset + `parsePortalRule` + query URL (`?n=&w=&h=`) model | Accepted | One pipeline serves social/web presets, pasted portal error text, and shared WhatsApp/team links |
+| 004 | Zero client-side analytics; script-free Cloudflare edge counts | Accepted | Preserves `connect-src 'self'` with zero third-party JS |
+| 005 | Cloudflare Pages primary (`_headers`), GitHub Pages fallback | Accepted | Real HTTP CSP and cache headers |
+| 006 | Safe `<= 16 MP` canvas pool + explicit bitmap/canvas disposal | Accepted | Eliminates iOS Safari and 2 GB Android OOM crashes |
+| 007 | Native `convertToBlob`/`toBlob` JPEG/WebP/PNG + DPI writer (defer WASM codecs) | Accepted | `0 KB` codec overhead; fits inside `< 80 KB` budget |
+| 008 | No AI background replacement | Accepted | Policy-safe for passports, zero ML model download/OOM risk |
+| 009 | In-memory images + silent EXIF/GPS scrub on export | Accepted | Privacy by default without blocking the primary flow |
+| 010 | MIT code + CC0-1.0 spec/guide data | Accepted | Maximum reuse across docs, presets, and future packages |
+| 011 | Pure DOM-free `src/engine/` boundary enforcement | Accepted | Enables Web Worker isolation, fast Vitest runs, and future `<kilocrop-input>` extraction |
+| 012 | Pivot to instant Resize, Enhance & Compress workbench on `/` | Accepted | Eliminates 3-step wizard friction for everyday image sizing while retaining portal/print depth |
+| 013 | Royal Blue, White & Dark Gray system-font design with zero inline `style=` | Accepted | Offline-safe, crisp contrast in light & dark mode, 100% compatible with `style-src 'self'` |
+| 014 | Lazy-loaded multi-page studio routes over shared worker (`router.tsx`) | Accepted (Built) | Unlocks `/batch`, `/compare`, `/documents`, `/inspect`, `/print`, `/presets`, `/web-kit` while keeping initial payload compact |
+| 015 | Pure-TS `STORE` ZIP archive (`zip.ts`) instead of `jszip` | Accepted (Built) | Images are already compressed; `STORE` adds ~1 KB vs tens of KB of deflate runtime |
+| 016 | Zero-ML backdrop padding (`backdrop.ts`) & 64×64 salience focus (`salience.ts`) | Accepted (Built) | Solves aspect mismatch and portrait cropping in `< 5 ms` with 0 KB ML dependencies |
+| 017 | Fast 128×128 luma quality check (`quality-score.ts`) & paper leveling (`document.ts`) | Accepted (Built) | Honest quality feedback and sharp scanned document output inside strict KB caps |
+| 018 | Metadata-only `localStorage` saved presets (zero pixels persisted) | Accepted (Built) | Gives power users reusable custom targets while keeping the zero-persistence image promise intact |

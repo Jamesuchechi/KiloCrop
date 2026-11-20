@@ -2,8 +2,10 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
 import {
+  MAX_SAFE_CANVAS_AREA,
   clampCropRect,
   computeCenteredCrop,
+  computeFitPlan,
   computePreviewScale,
   mmToPx,
   orientedDimensions,
@@ -142,6 +144,108 @@ describe('geometry', () => {
           expect(out.height).toBeLessThanOrEqual(h);
         },
       ),
+    );
+  });
+
+  it('computes inside, fill (with focal shift), stretch, and 16 MP safe-area clamping', () => {
+    // inside with single width edge & dontEnlarge
+    const smallInside = computeFitPlan(
+      { width: 400, height: 200 },
+      { targetWidth: 800, targetHeight: null, fit: 'inside', dontEnlarge: true },
+    );
+    expect(smallInside.outputDims).toEqual({ width: 400, height: 200 });
+    expect(smallInside.cropped).toBe(false);
+
+    // inside allowed to enlarge
+    const enlarged = computeFitPlan(
+      { width: 400, height: 200 },
+      { targetWidth: 800, targetHeight: null, fit: 'inside', dontEnlarge: false },
+    );
+    expect(enlarged.outputDims).toEqual({ width: 800, height: 400 });
+
+    // fill with focalX=-1 aligns left edge, focalX=1 aligns right edge
+    const leftCrop = computeFitPlan(
+      { width: 2000, height: 1000 },
+      { targetWidth: 500, targetHeight: 500, fit: 'fill', dontEnlarge: true, focalX: -1 },
+    );
+    expect(leftCrop.sourceRect).toEqual({ x: 0, y: 0, width: 1000, height: 1000 });
+    expect(leftCrop.cropped).toBe(true);
+
+    const rightCrop = computeFitPlan(
+      { width: 2000, height: 1000 },
+      { targetWidth: 500, targetHeight: 500, fit: 'fill', dontEnlarge: true, focalX: 1 },
+    );
+    expect(rightCrop.sourceRect).toEqual({ x: 1000, y: 0, width: 1000, height: 1000 });
+
+    // fill falls back to inside when one dimension is blank
+    const fallbackInside = computeFitPlan(
+      { width: 1600, height: 800 },
+      { targetWidth: 600, targetHeight: null, fit: 'fill', dontEnlarge: true },
+    );
+    expect(fallbackInside.effectiveFit).toBe('inside');
+    expect(fallbackInside.outputDims).toEqual({ width: 600, height: 300 });
+
+    // stretch exact dimensions
+    const stretched = computeFitPlan(
+      { width: 1600, height: 800 },
+      { targetWidth: 500, targetHeight: 500, fit: 'stretch', dontEnlarge: true },
+    );
+    expect(stretched.outputDims).toEqual({ width: 500, height: 500 });
+    expect(stretched.cropped).toBe(false);
+
+    // pad keeps whole aspect-mismatched image centered inside target box
+    const padded = computeFitPlan(
+      { width: 800, height: 1600 },
+      { targetWidth: 1200, targetHeight: 600, fit: 'pad', dontEnlarge: true },
+    );
+    expect(padded.effectiveFit).toBe('pad');
+    expect(padded.cropped).toBe(false);
+    expect(padded.outputDims).toEqual({ width: 1200, height: 600 });
+    expect(padded.destRect).toEqual({ x: 450, y: 0, width: 300, height: 600 });
+
+    // 8000x8000 = 64 MP gets safely clamped under 16 MP
+    const clamped = computeFitPlan(
+      { width: 8000, height: 8000 },
+      { targetWidth: 8000, targetHeight: 8000, fit: 'stretch', dontEnlarge: true },
+    );
+    expect(clamped.wasClampedToSafeArea).toBe(true);
+    expect(clamped.outputDims.width * clamped.outputDims.height).toBeLessThanOrEqual(
+      MAX_SAFE_CANVAS_AREA,
+    );
+  });
+
+  it('property: computeFitPlan always yields valid rects inside source and <= 16 MP output', () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 10, max: 6000 }),
+        fc.integer({ min: 10, max: 6000 }),
+        fc.option(fc.integer({ min: 1, max: 8000 }), { nil: null }),
+        fc.option(fc.integer({ min: 1, max: 8000 }), { nil: null }),
+        fc.constantFrom<'inside' | 'fill' | 'pad' | 'stretch'>('inside', 'fill', 'pad', 'stretch'),
+        fc.boolean(),
+        (sw, sh, tw, th, fit, dontEnlarge) => {
+          const plan = computeFitPlan(
+            { width: sw, height: sh },
+            { targetWidth: tw, targetHeight: th, fit, dontEnlarge },
+          );
+          expect(plan.outputDims.width).toBeGreaterThanOrEqual(1);
+          expect(plan.outputDims.height).toBeGreaterThanOrEqual(1);
+          expect(plan.outputDims.width * plan.outputDims.height).toBeLessThanOrEqual(
+            MAX_SAFE_CANVAS_AREA,
+          );
+          expect(plan.destRect.x).toBeGreaterThanOrEqual(0);
+          expect(plan.destRect.y).toBeGreaterThanOrEqual(0);
+          expect(plan.destRect.x + plan.destRect.width).toBeLessThanOrEqual(plan.outputDims.width);
+          expect(plan.destRect.y + plan.destRect.height).toBeLessThanOrEqual(
+            plan.outputDims.height,
+          );
+          expect(plan.sourceRect.x).toBeGreaterThanOrEqual(0);
+          expect(plan.sourceRect.y).toBeGreaterThanOrEqual(0);
+          expect(plan.sourceRect.x + plan.sourceRect.width).toBeLessThanOrEqual(sw + 1e-6);
+          expect(plan.sourceRect.y + plan.sourceRect.height).toBeLessThanOrEqual(sh + 1e-6);
+        },
+      ),
+      { numRuns: 50 },
     );
   });
 });

@@ -6,3 +6,4 @@ playwright-report
 test-results
 specs/bundle.json
 *.md
+KiloCrop*.html
